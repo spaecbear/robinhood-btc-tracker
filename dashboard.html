@@ -1555,6 +1555,12 @@
             document.getElementById('period-month').textContent = '...';
             document.getElementById('period-year').textContent = '...';
 
+            // If History tab is active, refresh it to show updated P&L
+            const historyTab = document.getElementById('history-tab');
+            if (historyTab && historyTab.classList.contains('active')) {
+                loadLast24Hours();
+            }
+
             console.log(`[BACKTEST-LIVE] ✓ Complete. Win rate: ${winRate.toFixed(1)}%, Daily P&L: $${dailyPnL.toFixed(2)}, Balance: $${endingBalance.toFixed(2)}`);
             } catch (error) {
                 console.error('[BACKTEST-LIVE] Error:', error);
