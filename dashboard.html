@@ -502,6 +502,10 @@
                     <button onclick="loadLast24Hours()">Load Last 24h</button>
                 </div>
                 <div style="overflow-x: auto;">
+                    <div id="history-summary" style="margin-bottom: 15px; padding: 10px; background: rgba(0, 200, 200, 0.1); border-radius: 6px; border-left: 3px solid rgba(0, 200, 200, 0.4);">
+                        <span style="color: #80868d; font-size: 0.9em;">Running Total: </span>
+                        <span id="history-total" style="color: #00c8c8; font-size: 1.1em; font-weight: 600;">$0.00</span>
+                    </div>
                     <table>
                         <thead>
                             <tr>
@@ -512,7 +516,6 @@
                                 <th>Checkpoint</th>
                                 <th>CP Dir</th>
                                 <th>Match</th>
-                                <th>Total Return</th>
                                 <th>P&L</th>
                             </tr>
                         </thead>
@@ -1357,11 +1360,12 @@
                 return;
             }
 
+            let runningTotal = 0;
             for (const interval of displayIntervals) {
                 // Calculate P&L using live parameters, not stored values
                 const contracts = bet / entry;
                 const profit = interval.matched ? (contracts - bet) : -bet;
-                const totalReturn = interval.matched ? contracts : 0;
+                runningTotal += profit;
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -1372,13 +1376,17 @@
                     <td>$${interval.checkpoint.toFixed(2)}</td>
                     <td><span class="badge ${interval.cpDir}">${interval.cpDir}</span></td>
                     <td><span class="badge ${interval.matched ? 'match' : 'mismatch'}">${interval.matched ? 'YES' : 'NO'}</span></td>
-                    <td style="color: ${interval.matched ? '#2ecc71' : '#e74c3c'}; font-weight: 600;">$${totalReturn.toFixed(2)}</td>
                     <td style="color: ${profit >= 0 ? '#2ecc71' : '#e74c3c'};">${profit > 0 ? '+' : ''}$${profit.toFixed(2)}</td>
                 `;
                 tbody.appendChild(tr);
             }
 
-            console.log(`[HISTORY] Loaded ${displayIntervals.length} intervals from last 24 hours (using live params: bet=$${bet}, entry=$${entry})`);
+            // Update running total display
+            const totalEl = document.getElementById('history-total');
+            totalEl.textContent = `${runningTotal >= 0 ? '+' : ''}$${runningTotal.toFixed(2)}`;
+            totalEl.style.color = runningTotal >= 0 ? '#2ecc71' : '#e74c3c';
+
+            console.log(`[HISTORY] Loaded ${displayIntervals.length} intervals from last 24 hours (using live params: bet=$${bet}, entry=$${entry}) | Running total: $${runningTotal.toFixed(2)}`);
         }
 
         function loadHistoryForDate() {
