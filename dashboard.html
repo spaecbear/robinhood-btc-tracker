@@ -1,0 +1,1696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC 15-Min Pattern Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f1419 0%, #1a1f2e 100%);
+            color: #e0e6ed;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid rgba(0, 200, 200, 0.3);
+            padding-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            color: #00c8c8;
+            text-shadow: 0 0 20px rgba(0, 200, 200, 0.5);
+            margin-bottom: 5px;
+        }
+
+        .header-meta {
+            font-size: 0.9em;
+            color: #a0a6ad;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(0, 200, 200, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .panel h2 {
+            color: #00c8c8;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        .status-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(0, 200, 200, 0.15);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .stat-label {
+            font-size: 0.85em;
+            color: #80868d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 1.8em;
+            color: #00c8c8;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+            text-shadow: 0 0 10px rgba(0, 200, 200, 0.4);
+        }
+
+        .stat-value.up {
+            color: #2ecc71;
+        }
+
+        .stat-value.down {
+            color: #e74c3c;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-bottom: 20px;
+        }
+
+        canvas {
+            max-height: 100%;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        button {
+            background: rgba(0, 200, 200, 0.2);
+            border: 1px solid rgba(0, 200, 200, 0.4);
+            color: #00c8c8;
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            background: rgba(0, 200, 200, 0.4);
+            box-shadow: 0 0 15px rgba(0, 200, 200, 0.5);
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        input[type="number"], input[type="date"], select {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(0, 200, 200, 0.3);
+            color: #e0e6ed;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.9em;
+        }
+
+        input[type="number"]:focus, input[type="date"]:focus, select:focus {
+            outline: none;
+            border-color: rgba(0, 200, 200, 0.6);
+            box-shadow: 0 0 10px rgba(0, 200, 200, 0.3);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .summary-box {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(0, 200, 200, 0.15);
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .summary-box h3 {
+            color: #00c8c8;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .summary-box .value {
+            font-size: 1.6em;
+            font-weight: 600;
+            color: #e0e6ed;
+            font-family: 'Courier New', monospace;
+        }
+
+        .summary-box .value.positive {
+            color: #2ecc71;
+        }
+
+        .summary-box .value.negative {
+            color: #e74c3c;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid rgba(0, 200, 200, 0.1);
+        }
+
+        th {
+            background: rgba(0, 200, 200, 0.1);
+            color: #00c8c8;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85em;
+        }
+
+        tr:hover {
+            background: rgba(0, 200, 200, 0.05);
+        }
+
+        td {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge.above {
+            background: rgba(46, 204, 113, 0.2);
+            color: #2ecc71;
+            border: 1px solid rgba(46, 204, 113, 0.5);
+        }
+
+        .badge.below {
+            background: rgba(231, 76, 60, 0.2);
+            color: #e74c3c;
+            border: 1px solid rgba(231, 76, 60, 0.5);
+        }
+
+        .badge.match {
+            background: rgba(46, 204, 113, 0.2);
+            color: #2ecc71;
+        }
+
+        .badge.mismatch {
+            background: rgba(231, 76, 60, 0.2);
+            color: #e74c3c;
+        }
+
+        .time-display {
+            color: #80868d;
+            font-size: 0.9em;
+            margin-left: auto;
+        }
+
+        .chart-legend {
+            display: flex;
+            gap: 20px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+            font-size: 0.9em;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .offset-accuracy {
+            margin-top: 15px;
+        }
+
+        .offset-table {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .bankroll-section {
+            margin-top: 20px;
+        }
+
+        .bankroll-input {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .bankroll-input label {
+            color: #80868d;
+            font-size: 0.9em;
+            text-transform: uppercase;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid rgba(0, 200, 200, 0.1);
+        }
+
+        .tab {
+            background: transparent;
+            border: none;
+            color: #80868d;
+            padding: 12px 16px;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            color: #00c8c8;
+            border-bottom-color: #00c8c8;
+            text-shadow: 0 0 10px rgba(0, 200, 200, 0.4);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #2ecc71;
+            animation: pulse 2s infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7);
+            }
+            50% {
+                box-shadow: 0 0 0 6px rgba(46, 204, 113, 0);
+            }
+        }
+
+        .refresh-time {
+            color: #80868d;
+            font-size: 0.8em;
+            margin-top: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .status-bar {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            button, input, select {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="status-indicator"></span>
+                <h1>₿ Bitcoin Pattern Tracker</h1>
+            </div>
+            <div class="header-meta">15-Minute Interval Analysis • Robinhood Prediction Study</div>
+        </header>
+
+        <!-- Live Status Panel -->
+        <div class="panel">
+            <h2>Live Status
+                <div style="float: right; font-size: 0.9em; display: flex; align-items: center; gap: 10px;">
+                    <label style="color: #80868d;">Checkpoint Offset (min):</label>
+                    <input type="number" id="checkpoint-offset" min="1" max="14" value="5" style="width: 60px;" onchange="changeCheckpointOffset()">
+                    <button onclick="changeCheckpointOffset()" style="padding: 8px 12px; font-size: 0.8em;">↻ Recalc</button>
+                </div>
+            </h2>
+            <div class="status-bar">
+                <div class="stat-card">
+                    <div class="stat-label">Current Price</div>
+                    <div class="stat-value" id="current-price">$0.00</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Interval Open</div>
+                    <div class="stat-value" id="interval-open">$0.00</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Change</div>
+                    <div class="stat-value" id="interval-change">$0.00</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Time to Close</div>
+                    <div class="stat-value" id="time-to-close">--:--</div>
+                </div>
+            </div>
+            <div class="refresh-time" id="last-update">Last update: --</div>
+        </div>
+
+        <!-- Tabs for different views -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('chart')">📈 Chart</button>
+            <button class="tab" onclick="switchTab('history')">📊 History</button>
+            <button class="tab" onclick="switchTab('backtest')">💰 Backtest</button>
+            <button class="tab" onclick="switchTab('analysis')">📉 Analysis</button>
+            <button class="tab" onclick="switchTab('ml')">🤖 ML Prediction</button>
+        </div>
+
+        <!-- Chart Tab -->
+        <div id="chart-tab" class="tab-content active">
+            <div class="panel">
+                <h2>Price Chart (Last 24 Hours)</h2>
+                <div class="controls">
+                    <button id="live-toggle-btn" onclick="toggleLiveMode()" style="padding: 10px 16px; font-size: 0.9em; background: rgba(46, 204, 113, 0.3); border-color: rgba(46, 204, 113, 0.6); color: #2ecc71;">🔴 LIVE</button>
+                    <button onclick="zoomChart(0.5)">🔍 Zoom In</button>
+                    <button onclick="zoomChart(2)">🔍 Zoom Out</button>
+                    <button onclick="chartPrevious()">← Previous</button>
+                    <button onclick="chartNext()">Next →</button>
+                    <button onclick="chartToLive()" id="back-to-live-btn" style="display:none;">↻ Back to Live</button>
+                    <div class="time-display" id="chart-time-display"></div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="priceChart"></canvas>
+                </div>
+                <div class="chart-legend">
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background: #00c8c8; box-shadow: 0 0 10px rgba(0, 200, 200, 0.6);"></div>
+                        <span>Price Line</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background: #2ecc71;"></div>
+                        <span>Closed Above Open</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background: #e74c3c;"></div>
+                        <span>Closed Below Open</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background: #f39c12;"></div>
+                        <span>Checkpoint Marker</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Tab -->
+        <div id="history-tab" class="tab-content">
+            <div class="panel">
+                <h2>Recent Intervals</h2>
+                <div class="controls">
+                    <input type="date" id="history-date" onchange="loadHistoryForDate()">
+                    <button onclick="loadLast24Hours()">Load Last 24h</button>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Interval Start</th>
+                                <th>Open</th>
+                                <th>Close</th>
+                                <th>Direction</th>
+                                <th>Checkpoint</th>
+                                <th>CP Dir</th>
+                                <th>Match</th>
+                                <th>P&L</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Backtest Tab -->
+        <div id="backtest-tab" class="tab-content">
+            <div class="panel">
+                <h2>Monetary Backtest Simulation</h2>
+
+                <div class="controls">
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <label style="color: #80868d; font-size: 0.9em;">Bet Amount ($):</label>
+                            <input type="number" id="bet-amount" value="50" min="1" step="1" style="width: 100px;" onchange="updateBacktest()">
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <label style="color: #80868d; font-size: 0.9em;">Entry Price ($):</label>
+                            <input type="number" id="entry-price" value="0.90" min="0.01" step="0.01" max="1" style="width: 100px;" onchange="updateBacktest()">
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <label style="color: #80868d; font-size: 0.9em;">Start Seed ($):</label>
+                            <input type="number" id="start-seed" value="100" min="1" step="10" style="width: 100px;" onchange="updateBankroll()">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="summary-grid">
+                    <div class="summary-box">
+                        <h3>Today's P&L</h3>
+                        <div class="value" id="daily-pnl">$0.00</div>
+                    </div>
+                    <div class="summary-box">
+                        <h3>Win Rate</h3>
+                        <div class="value" id="win-rate">0%</div>
+                    </div>
+                    <div class="summary-box">
+                        <h3>Total Intervals</h3>
+                        <div class="value" id="total-intervals">0</div>
+                    </div>
+                    <div class="summary-box">
+                        <h3>Ending Balance</h3>
+                        <div class="value" id="ending-balance">$0.00</div>
+                    </div>
+                    <div class="summary-box">
+                        <h3>Max Drawdown</h3>
+                        <div class="value" id="max-drawdown">$0.00</div>
+                    </div>
+                    <div class="summary-box">
+                        <h3>Min Required Seed</h3>
+                        <div class="value" id="min-seed">$0.00</div>
+                    </div>
+                </div>
+
+                <h3 style="color: #00c8c8; margin-top: 20px; margin-bottom: 15px;">Period Totals</h3>
+                <div class="summary-grid">
+                    <div class="summary-box">
+                        <h3>Today</h3>
+                        <div class="value" id="period-today">$0.00</div>
+                    </div>
+                    <div class="summary-box">
+                        <h3>This Month</h3>
+                        <div class="value" id="period-month">$0.00</div>
+                    </div>
+                    <div class="summary-box">
+                        <h3>This Year</h3>
+                        <div class="value" id="period-year">$0.00</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analysis Tab -->
+        <div id="analysis-tab" class="tab-content">
+            <div class="panel">
+                <h2>Checkpoint Offset Analysis</h2>
+                <div class="controls">
+                    <button onclick="runOffsetAnalysis()">📊 Analyze Offsets (1-15 min)</button>
+                </div>
+                <div id="offset-results"></div>
+            </div>
+        </div>
+
+        <!-- ML Prediction Tab -->
+        <div id="ml-tab" class="tab-content">
+            <div class="panel">
+                <h2>Machine Learning Prediction
+                    <button onclick="updateMLPredictions()" style="float: right; padding: 8px 12px; font-size: 0.8em;">↻ Retrain</button>
+                </h2>
+                <p style="color: #80868d; font-size: 0.9em; margin-bottom: 5px;">
+                    A logistic-regression model predicts if the interval will close <b>above</b> or <b>below</b> its open —
+                    using only data available <b>at the start</b> of the interval (no peeking inside it).
+                </p>
+                <p style="color: #80868d; font-size: 0.85em; margin-bottom: 15px;">
+                    The model must beat the <b>baseline</b> (always guessing the majority class) to have learned anything real.
+                    Trust the <b>walk-forward</b> number — it's fully out-of-sample.
+                </p>
+
+                <!-- Next-interval live call -->
+                <div id="ml-next-call" class="summary-box" style="margin-bottom: 20px; text-align: center; border-color: rgba(0, 200, 200, 0.4);">
+                    <h3>Model's Call for the Next Interval</h3>
+                    <div class="value" id="ml-next" style="font-size: 2em;">—</div>
+                </div>
+
+                <div class="summary-grid">
+                    <div class="summary-box" style="border-color: rgba(0, 200, 200, 0.6); box-shadow: 0 0 20px rgba(0, 200, 200, 0.3);">
+                        <h3>Model Accuracy (Honest)</h3>
+                        <div class="value" id="ml-cv" style="font-size: 2.5em;">—</div>
+                        <div style="font-size: 0.8em; color: #a0a6ad; margin-top: 5px;">Walk-forward out-of-sample</div>
+                    </div>
+                    <div class="summary-box" style="border-color: rgba(0, 200, 200, 0.4);">
+                        <h3>Data Points (Intervals)</h3>
+                        <div class="value" id="ml-samples" style="font-size: 2em;">—</div>
+                        <div style="font-size: 0.8em; color: #a0a6ad; margin-top: 5px;">Usable for training</div>
+                    </div>
+                    <div class="summary-box">
+                        <h3>Correct Predictions</h3>
+                        <div class="value" id="ml-correct-count">—</div>
+                    </div>
+                    <div class="summary-box">
+                        <h3>Total Predictions</h3>
+                        <div class="value" id="ml-total-count">—</div>
+                    </div>
+                    <div class="summary-box">
+                        <h3>Baseline (Majority)</h3>
+                        <div class="value" id="ml-baseline">—</div>
+                    </div>
+                    <div class="summary-box">
+                        <h3>Edge vs Baseline</h3>
+                        <div class="value" id="ml-edge">—</div>
+                    </div>
+                    <div class="summary-box">
+                        <h3>Overfit Gap</h3>
+                        <div class="value" id="ml-overfit">—</div>
+                    </div>
+                </div>
+
+                <div id="ml-status" style="color: #80868d; margin-top: 15px;"></div>
+
+                <h3 style="color: #00c8c8; margin-top: 20px; margin-bottom: 10px;">Feature Importance</h3>
+                <p style="color: #80868d; font-size: 0.85em; margin-bottom: 10px;">
+                    Weights on standardized inputs — bigger absolute value = more influence on the prediction.
+                </p>
+                <div id="ml-features"></div>
+
+                <h3 style="color: #00c8c8; margin-top: 20px; margin-bottom: 15px;">Out-of-Sample Predictions</h3>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Interval Start</th>
+                                <th>ML Prediction</th>
+                                <th>Confidence</th>
+                                <th>Actual Outcome</th>
+                                <th>Correct?</th>
+                                <th>Open</th>
+                                <th>Close</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ml-predictions-table">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allIntervals = [];
+        let allTicks = [];
+        let currentIntervals = [];  // Updated when checkpoint offset changes
+        let displayTicks = [];  // Current displayed ticks (for chart plugin access)
+        let chart = null;
+        let chartStartIndex = 0;
+        let chartEndIndex = 180;  // Show last ~3 intervals (180 ticks at 15-sec polling = 45 min)
+        let isLiveMode = true;
+
+        const CONFIG = {
+            pollIntervalMs: 5000
+        };
+
+        async function init() {
+            await loadData();
+            await updateLiveStatus();
+            initChart();
+            updateChartDisplay();
+
+            // Update live status periodically (every 5 seconds)
+            setInterval(updateLiveStatus, CONFIG.pollIntervalMs);
+
+            // Reload and update chart more frequently (every 3 seconds when in live mode)
+            setInterval(() => {
+                if (isLiveMode) {
+                    loadData().then(() => {
+                        updateChartDisplay();
+                        updateLiveStatus();
+                    });
+                }
+            }, 3000);
+        }
+
+        async function loadData() {
+            try {
+                const [intervals, ticks] = await Promise.all([
+                    fetch('/api/intervals').then(r => r.text()).then(parseCSV),
+                    fetch('/api/ticks').then(r => r.text()).then(parseCSV)
+                ]);
+                allIntervals = intervals.slice(1).filter(row => row.length > 8).map(row => ({
+                    start: row[0],
+                    open: parseFloat(row[1]),
+                    close: parseFloat(row[2]),
+                    checkpoint: parseFloat(row[3]),
+                    cpMinutes: parseInt(row[4]),
+                    closeDir: row[5],
+                    cpDir: row[6],
+                    matched: (row[7] && row[7].toLowerCase() === 'true'),
+                    missed: (row[8] && row[8].toLowerCase() === 'true'),
+                    bet: parseFloat(row[9]) || 50,
+                    entry: parseFloat(row[10]) || 0.90
+                })).reverse(); // Reverse to have latest first
+
+                // IMPORTANT: Keep ticks in chronological order (oldest first) for chart display
+                allTicks = ticks.slice(1).filter(row => {
+                    return row.length >= 2 && row[0] && row[0].trim() && row[1] && !isNaN(parseFloat(row[1]));
+                }).map(row => {
+                    const price = parseFloat(row[1]);
+                    return {
+                        time: row[0].trim(),
+                        price: isNaN(price) ? null : price
+                    };
+                }).filter(t => t.price !== null);
+
+                console.log(`Loaded ${allTicks.length} ticks and ${allIntervals.length} intervals`);
+            } catch (e) {
+                console.error('Error loading data:', e);
+            }
+        }
+
+        function parseCSV(text) {
+            // Handle both Unix (\n) and Windows (\r\n) line endings
+            return text.split(/\r?\n/).map(line =>
+                line.split(',').map(cell => cell.trim())
+            );
+        }
+
+        async function updateLiveStatus() {
+            try {
+                const res = await fetch('/api/latest');
+                const data = await res.json();
+
+                document.getElementById('current-price').textContent = `$${data.current_price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+                if (data.current_open_price) {
+                    document.getElementById('interval-open').textContent = `$${data.current_open_price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+                    const change = data.current_price - data.current_open_price;
+                    const changeEl = document.getElementById('interval-change');
+                    changeEl.textContent = `${change > 0 ? '+' : ''}$${change.toFixed(2)}`;
+                    changeEl.className = `stat-value ${change > 0 ? 'up' : 'down'}`;
+                }
+
+                // Update time to close
+                const now = new Date();
+                const closeTime = new Date(data.current_interval_end);
+                const secondsLeft = Math.max(0, Math.floor((closeTime - now) / 1000));
+                const minutes = Math.floor(secondsLeft / 60);
+                const seconds = secondsLeft % 60;
+                document.getElementById('time-to-close').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+                // Update daily P&L
+                const dailyPnL = calculateDailyPnL(data);
+                const pnlEl = document.querySelector('[id="daily-pnl"]');
+                pnlEl.textContent = `${dailyPnL > 0 ? '+' : ''}$${dailyPnL.toFixed(2)}`;
+                pnlEl.className = `value ${dailyPnL >= 0 ? 'positive' : 'negative'}`;
+
+                // Update win rate
+                const winRate = calculateWinRate();
+                document.getElementById('win-rate').textContent = `${winRate.toFixed(1)}%`;
+
+                document.getElementById('total-intervals').textContent = allIntervals.length;
+
+                document.getElementById('last-update').textContent = `Last update: ${new Date().toLocaleTimeString()}`;
+            } catch (e) {
+                console.error('Error updating status:', e);
+            }
+        }
+
+        function calculateDailyPnL(latest) {
+            const today = new Date().toDateString();
+            let total = 0;
+            for (const interval of allIntervals) {
+                const intervalDate = new Date(interval.start).toDateString();
+                if (intervalDate === today && !interval.missed) {
+                    const contracts = interval.bet / interval.entry;
+                    const profit = interval.matched ? (contracts - interval.bet) : -interval.bet;
+                    total += profit;
+                }
+            }
+            return total;
+        }
+
+        function calculateWinRate() {
+            if (allIntervals.length === 0) return 0;
+            const wins = allIntervals.filter(i => !i.missed && i.matched).length;
+            return (wins / allIntervals.filter(i => !i.missed).length) * 100;
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+
+            // Plugin to draw vertical lines at interval boundaries and checkpoint times
+            const intervalLinesPlugin = {
+                id: 'intervalLines',
+                afterDatasetsDraw(chart) {
+                    try {
+                        const ctx = chart.ctx;
+                        const chartArea = chart.chartArea;
+                        const xAxis = chart.scales.x;
+                        const yAxis = chart.scales.y;
+
+                        if (!xAxis || !yAxis || !chart.data.labels || chart.data.labels.length === 0) {
+                            return;
+                        }
+
+                        // Draw vertical lines at interval boundaries (:00, :15, :30, :45)
+                        for (let i = 0; i < chart.data.labels.length; i++) {
+                            const label = chart.data.labels[i];
+
+                            // Check if this label is at a 15-min boundary (ends with :00, :15, :30, or :45)
+                            const isBoundary = label.endsWith(':00') || label.endsWith(':15') ||
+                                             label.endsWith(':30') || label.endsWith(':45');
+
+                            if (isBoundary) {
+                                const x = xAxis.getPixelForValue(i);
+
+                                // Skip if x is outside chart area
+                                if (x < chartArea.left || x > chartArea.right) {
+                                    continue;
+                                }
+
+                                // Determine line color based on interval outcome
+                                let lineColor = 'rgba(0, 200, 200, 0.3)'; // default teal
+                                let lineWidth = 1.5;
+
+                                // Use displayTicks (correct indices) instead of allTicks
+                                if (displayTicks && displayTicks[i]) {
+                                    const tickTime = new Date(displayTicks[i].time);
+                                    const matchingInterval = allIntervals.find(iv => {
+                                        try {
+                                            const ivStart = new Date(iv.start);
+                                            return Math.abs(tickTime - ivStart) < 60000; // within 1 minute
+                                        } catch (e) {
+                                            return false;
+                                        }
+                                    });
+
+                                    if (matchingInterval) {
+                                        lineWidth = 2;
+                                        lineColor = matchingInterval.closeDir === 'above'
+                                            ? 'rgba(46, 204, 113, 0.6)'
+                                            : 'rgba(231, 76, 60, 0.6)';
+                                    }
+                                }
+
+                                // Draw the vertical dashed line
+                                ctx.save();
+                                ctx.strokeStyle = lineColor;
+                                ctx.lineWidth = lineWidth;
+                                ctx.setLineDash([5, 5]);
+                                ctx.beginPath();
+                                ctx.moveTo(x, chartArea.top);
+                                ctx.lineTo(x, chartArea.bottom);
+                                ctx.stroke();
+                                ctx.restore();
+                            }
+                        }
+
+                        // --- Draw checkpoint markers (vertical dotted lines) ---
+                        // Checkpoints are at interval_start + (15 - checkpoint_minutes)
+                        const cpOffset = parseInt(document.getElementById('checkpoint-offset').value) || 5;
+
+                        allIntervals.forEach(interval => {
+                            try {
+                                const intervalStart = new Date(interval.start);
+                                const checkpointTime = new Date(intervalStart.getTime() + (15 - cpOffset) * 60 * 1000);
+
+                                // Find the closest tick in displayTicks to checkpoint time
+                                let closestIdx = -1;
+                                let closestDist = Infinity;
+
+                                for (let i = 0; i < displayTicks.length; i++) {
+                                    const tickTime = new Date(displayTicks[i].time);
+                                    const dist = Math.abs(tickTime - checkpointTime);
+                                    if (dist < closestDist && dist < 120000) { // within 2 minutes
+                                        closestDist = dist;
+                                        closestIdx = i;
+                                    }
+                                }
+
+                                if (closestIdx >= 0) {
+                                    const x = xAxis.getPixelForValue(closestIdx);
+
+                                    // Skip if outside chart area
+                                    if (x < chartArea.left || x > chartArea.right) {
+                                        return;
+                                    }
+
+                                    // Color based on whether checkpoint matched close
+                                    const cpColor = interval.matched
+                                        ? 'rgba(46, 204, 113, 0.7)'   // green if correct
+                                        : 'rgba(231, 76, 60, 0.7)';   // red if wrong
+
+                                    // Draw dotted checkpoint line (thinner and dotted, not dashed)
+                                    ctx.save();
+                                    ctx.strokeStyle = cpColor;
+                                    ctx.lineWidth = 2;
+                                    ctx.setLineDash([2, 4]); // dots instead of dashes
+                                    ctx.beginPath();
+                                    ctx.moveTo(x, chartArea.top);
+                                    ctx.lineTo(x, chartArea.bottom);
+                                    ctx.stroke();
+                                    ctx.restore();
+                                }
+                            } catch (e) {
+                                // ignore
+                            }
+                        });
+                    } catch (e) {
+                        console.error('[CHART] Plugin error:', e);
+                    }
+                }
+            };
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'BTC/USD',
+                            data: [],
+                            borderColor: '#00c8c8',
+                            backgroundColor: 'rgba(0, 200, 200, 0.05)',
+                            borderWidth: 2,
+                            fill: true,
+                            pointRadius: 3,
+                            pointBackgroundColor: '#00c8c8',
+                            pointBorderColor: '#00c8c8',
+                            pointBorderWidth: 1,
+                            tension: 0.4,
+                            borderCapStyle: 'round',
+                            borderJoinStyle: 'round'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: true, labels: { color: '#80868d', font: { size: 12 } } },
+                        filler: { propagate: true }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            ticks: { color: '#80868d', callback: value => `$${value.toFixed(0)}` },
+                            grid: { color: 'rgba(0, 200, 200, 0.1)' }
+                        },
+                        x: {
+                            ticks: { color: '#80868d' },
+                            grid: { color: 'rgba(0, 200, 200, 0.1)' }
+                        }
+                    }
+                },
+                plugins: [intervalLinesPlugin]
+            });
+        }
+
+        function updateChartDisplay() {
+            if (!chart) {
+                console.log('[CHART] Chart not initialized yet');
+                return;
+            }
+
+            if (allTicks.length === 0) {
+                console.log('[CHART] No ticks loaded');
+                return;
+            }
+
+            // In live mode, show the most recent ticks
+            let displayStart = chartStartIndex;
+            let displayEnd = chartEndIndex;
+
+            if (isLiveMode) {
+                // Show the last chartEndIndex ticks
+                displayStart = Math.max(0, allTicks.length - chartEndIndex);
+                displayEnd = allTicks.length;
+            } else {
+                // In zoom/history mode, use the set indices directly
+                displayStart = Math.max(0, chartStartIndex);
+                displayEnd = Math.min(allTicks.length, chartEndIndex);
+            }
+
+            // Store globally for plugin access
+            displayTicks = allTicks.slice(displayStart, displayEnd);
+
+            console.log(`[CHART] Updating with ${displayTicks.length}/${allTicks.length} ticks (live: ${isLiveMode}, range: ${displayStart}-${displayEnd})`);
+
+            const labels = displayTicks.map((t, i) => {
+                try {
+                    const date = new Date(t.time);
+                    if (isNaN(date.getTime())) {
+                        console.warn(`[CHART] Invalid date: ${t.time}`);
+                        return `${i}`;
+                    }
+                    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+                } catch (e) {
+                    console.error(`[CHART] Error parsing date: ${e}`);
+                    return `${i}`;
+                }
+            });
+
+            const prices = displayTicks.map((t, i) => {
+                const p = parseFloat(t.price);
+                if (isNaN(p)) {
+                    console.warn(`[CHART] Invalid price at index ${i}: ${t.price}`);
+                    return null;
+                }
+                return p;
+            });
+
+            // Compute point styling: highlight interval markers (open, close, checkpoint)
+            const pointRadius = displayTicks.map((t, i) => 3); // default
+            const pointBackgroundColor = displayTicks.map((t, i) => '#00c8c8'); // default teal
+            const pointBorderColor = displayTicks.map((t, i) => '#00c8c8');
+            const pointBorderWidth = displayTicks.map((t, i) => 1);
+
+            // Mark intervals: find ticks that align with :00, :15, :30, :45
+            displayTicks.forEach((t, i) => {
+                try {
+                    const date = new Date(t.time);
+                    const minute = date.getUTCMinutes();
+
+                    // Check if this tick is close to an interval boundary
+                    const boundaryMinutes = [0, 15, 30, 45];
+                    for (const bm of boundaryMinutes) {
+                        if (Math.abs(minute - bm) < 1) {
+                            // This is near an interval boundary
+                            // Make it larger and change color
+                            pointRadius[i] = 6;
+                            pointBorderWidth[i] = 2;
+
+                            // Find corresponding interval to determine color
+                            const intervalStart = new Date(date);
+                            intervalStart.setUTCMinutes((Math.floor(date.getUTCMinutes() / 15) * 15), 0, 0);
+
+                            // Check in allIntervals for color coding
+                            const foundInterval = allIntervals.find(iv => {
+                                const ivStart = new Date(iv.start);
+                                return Math.abs(ivStart - intervalStart) < 60000; // within 1 min
+                            });
+
+                            if (foundInterval) {
+                                // Color based on close direction
+                                if (foundInterval.closeDir === 'above') {
+                                    pointBackgroundColor[i] = '#2ecc71'; // green
+                                    pointBorderColor[i] = '#27ae60';
+                                } else {
+                                    pointBackgroundColor[i] = '#e74c3c'; // red
+                                    pointBorderColor[i] = '#c0392b';
+                                }
+                            }
+                            break;
+                        }
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            });
+
+            console.log(`[CHART] Labels: ${labels.slice(0, 3).join(', ')}...`);
+            console.log(`[CHART] Prices: ${prices.slice(0, 3).join(', ')}...`);
+
+            chart.data.labels = labels;
+            chart.data.datasets[0].data = prices;
+            chart.data.datasets[0].pointRadius = pointRadius;
+            chart.data.datasets[0].pointBackgroundColor = pointBackgroundColor;
+            chart.data.datasets[0].pointBorderColor = pointBorderColor;
+            chart.data.datasets[0].pointBorderWidth = pointBorderWidth;
+
+            chart.update();
+
+            // Update time display
+            if (displayTicks.length > 0) {
+                try {
+                    const start = new Date(displayTicks[0].time).toLocaleString();
+                    const end = new Date(displayTicks[displayTicks.length - 1].time).toLocaleString();
+                    document.getElementById('chart-time-display').textContent = `${start} – ${end}`;
+                } catch (e) {
+                    document.getElementById('chart-time-display').textContent = `${displayTicks.length} ticks loaded`;
+                }
+            }
+        }
+
+        function zoomChart(factor) {
+            const range = chartEndIndex - chartStartIndex;
+            const newRange = Math.max(5, Math.floor(range * factor));
+            const center = (chartStartIndex + chartEndIndex) / 2;
+            chartStartIndex = Math.max(0, Math.floor(center - newRange / 2));
+            chartEndIndex = Math.min(allTicks.length, chartStartIndex + newRange);
+            isLiveMode = false;
+            updateLiveToggleButton();
+            console.log(`[ZOOM] Zoomed to range ${newRange}: ${chartStartIndex}-${chartEndIndex}`);
+            updateChartDisplay();
+        }
+
+        function chartPrevious() {
+            const range = chartEndIndex - chartStartIndex;
+            const shift = Math.floor(range * 0.5);  // Scroll by 50% of current range
+            chartStartIndex = Math.max(0, chartStartIndex - shift);
+            chartEndIndex = Math.min(allTicks.length, chartStartIndex + range);
+            isLiveMode = false;
+            updateLiveToggleButton();
+            console.log(`[NAV] Previous: ${chartStartIndex}-${chartEndIndex}`);
+            updateChartDisplay();
+        }
+
+        function chartNext() {
+            const range = chartEndIndex - chartStartIndex;
+            const shift = Math.floor(range * 0.5);  // Scroll by 50% of current range
+            chartEndIndex = Math.min(allTicks.length, chartEndIndex + shift);
+            chartStartIndex = Math.max(0, chartEndIndex - range);
+            isLiveMode = false;
+            updateLiveToggleButton();
+            console.log(`[NAV] Next: ${chartStartIndex}-${chartEndIndex}`);
+            updateChartDisplay();
+        }
+
+        function toggleLiveMode() {
+            isLiveMode = !isLiveMode;
+            const btn = document.getElementById('live-toggle-btn');
+            const backBtn = document.getElementById('back-to-live-btn');
+
+            if (isLiveMode) {
+                // Turn ON live mode
+                btn.style.background = 'rgba(46, 204, 113, 0.3)';
+                btn.style.borderColor = 'rgba(46, 204, 113, 0.6)';
+                btn.style.color = '#2ecc71';
+                btn.textContent = '🔴 LIVE';
+                backBtn.style.display = 'none';
+                console.log('[MODE] Live mode ON - chart will auto-update');
+            } else {
+                // Turn OFF live mode (pause)
+                btn.style.background = 'rgba(231, 76, 60, 0.3)';
+                btn.style.borderColor = 'rgba(231, 76, 60, 0.6)';
+                btn.style.color = '#e74c3c';
+                btn.textContent = '⏸ PAUSED';
+                console.log('[MODE] Live mode OFF (paused) - chart will not auto-update');
+            }
+            updateChartDisplay();
+        }
+
+        function chartToLive() {
+            chartStartIndex = 0;
+            chartEndIndex = 180;  // Show last ~3 intervals in live mode
+            isLiveMode = true;
+            updateLiveToggleButton();
+            console.log('[NAV] Back to live');
+            updateChartDisplay();
+        }
+
+        function updateLiveToggleButton() {
+            const btn = document.getElementById('live-toggle-btn');
+            const backBtn = document.getElementById('back-to-live-btn');
+
+            if (isLiveMode) {
+                btn.style.background = 'rgba(46, 204, 113, 0.3)';
+                btn.style.borderColor = 'rgba(46, 204, 113, 0.6)';
+                btn.style.color = '#2ecc71';
+                btn.textContent = '🔴 LIVE';
+                backBtn.style.display = 'none';
+            } else {
+                btn.style.background = 'rgba(231, 76, 60, 0.3)';
+                btn.style.borderColor = 'rgba(231, 76, 60, 0.6)';
+                btn.style.color = '#e74c3c';
+                btn.textContent = '⏸ PAUSED';
+            }
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            event.target.classList.add('active');
+            document.getElementById(`${tab}-tab`).classList.add('active');
+
+            if (tab === 'history') loadLast24Hours();
+            if (tab === 'backtest') updateBacktest();
+            if (tab === 'ml') updateMLPredictions();
+        }
+
+        function pctColor(value, reference) {
+            // Green if meaningfully above reference, red if below, neutral if ~equal.
+            if (value > reference + 0.5) return '#2ecc71';
+            if (value < reference - 0.5) return '#e74c3c';
+            return '#00c8c8';
+        }
+
+        function updateMLPredictions() {
+            /**
+             * Fetch the trained model report from the Python backend and render it.
+             * The actual training (logistic regression, walk-forward evaluation)
+             * happens server-side in ml_model.py.
+             */
+            console.log('[ML] Fetching model report...');
+
+            const statusEl = document.getElementById('ml-status');
+            statusEl.textContent = '⏳ Training model on logged data...';
+
+            // Reset display
+            ['ml-baseline', 'ml-cv', 'ml-edge', 'ml-train', 'ml-test', 'ml-overfit', 'ml-next'].forEach(id => {
+                document.getElementById(id).textContent = '—';
+            });
+
+            fetch('/api/ml')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'insufficient_data') {
+                        statusEl.textContent = `📊 ${data.message} (have ${data.have} / need ${data.need})`;
+                        document.getElementById('ml-predictions-table').innerHTML =
+                            `<tr><td colspan="7" style="text-align:center; color:#80868d;">${data.message}</td></tr>`;
+                        document.getElementById('ml-features').innerHTML = '';
+                        return;
+                    }
+                    if (data.status === 'error') {
+                        statusEl.textContent = `❌ Error: ${data.error}`;
+                        return;
+                    }
+
+                    statusEl.textContent = `✅ Trained on ${data.samples} intervals (class balance: ${data.above_rate}% above).`;
+
+                    // --- Headline metrics ---
+                    const baseline = data.baseline_accuracy;
+                    const cv = data.cv_accuracy;
+                    const correctCount = data.predictions.filter(p => p.correct).length;
+                    const totalCount = data.predictions.length;
+
+                    // Data points
+                    document.getElementById('ml-samples').textContent = `${data.samples}`;
+
+                    // Model accuracy (prominently displayed)
+                    const cvEl = document.getElementById('ml-cv');
+                    cvEl.textContent = `${cv}%`;
+                    cvEl.style.color = pctColor(cv, baseline);
+
+                    // Correct and total counts
+                    document.getElementById('ml-correct-count').textContent = `${correctCount}`;
+                    document.getElementById('ml-total-count').textContent = `${totalCount}`;
+
+                    // Baseline
+                    document.getElementById('ml-baseline').textContent = `${baseline}%`;
+
+                    // Edge vs baseline
+                    const edgeEl = document.getElementById('ml-edge');
+                    edgeEl.textContent = `${data.edge_vs_baseline >= 0 ? '+' : ''}${data.edge_vs_baseline} pts`;
+                    edgeEl.style.color = data.edge_vs_baseline > 0 ? '#2ecc71' : '#e74c3c';
+
+                    // Overfit gap
+                    const overfitEl = document.getElementById('ml-overfit');
+                    overfitEl.textContent = `${data.overfit_gap >= 0 ? '+' : ''}${data.overfit_gap} pts`;
+                    // Large positive gap = overfitting warning.
+                    overfitEl.style.color = data.overfit_gap > 8 ? '#e74c3c' : '#00c8c8';
+
+                    // --- Next-interval call ---
+                    const next = data.next_prediction;
+                    const nextEl = document.getElementById('ml-next');
+                    nextEl.textContent = `${next.prediction.toUpperCase()} (${(next.confidence * 100).toFixed(0)}%)`;
+                    nextEl.style.color = next.prediction === 'above' ? '#2ecc71' : '#e74c3c';
+
+                    // --- Feature importance bars ---
+                    const featDiv = document.getElementById('ml-features');
+                    const maxW = Math.max(...data.feature_weights.map(f => Math.abs(f.weight)), 0.0001);
+                    featDiv.innerHTML = data.feature_weights.map(f => {
+                        const pct = (Math.abs(f.weight) / maxW) * 100;
+                        const color = f.weight >= 0 ? '#2ecc71' : '#e74c3c';
+                        return `<div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+                            <span style="width:120px; color:#a0a6ad; font-size:0.85em; font-family:monospace;">${f.name}</span>
+                            <div style="flex:1; background:rgba(255,255,255,0.05); border-radius:4px; height:18px; position:relative;">
+                                <div style="width:${pct}%; background:${color}; height:100%; border-radius:4px; opacity:0.7;"></div>
+                            </div>
+                            <span style="width:70px; text-align:right; color:${color}; font-family:monospace; font-size:0.85em;">${f.weight >= 0 ? '+' : ''}${f.weight}</span>
+                        </div>`;
+                    }).join('');
+
+                    // --- Out-of-sample predictions table ---
+                    const tbody = document.getElementById('ml-predictions-table');
+                    tbody.innerHTML = '';
+                    data.predictions.slice(0, 100).forEach(p => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${new Date(p.start).toLocaleString()}</td>
+                            <td><span class="badge ${p.prediction}">${p.prediction}</span></td>
+                            <td>${(p.confidence * 100).toFixed(0)}%</td>
+                            <td><span class="badge ${p.actual}">${p.actual}</span></td>
+                            <td><span style="color:${p.correct ? '#2ecc71' : '#e74c3c'}; font-weight:600;">${p.correct ? '✓ YES' : '✗ NO'}</span></td>
+                            <td>$${p.open.toFixed(2)}</td>
+                            <td>$${p.close.toFixed(2)}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+
+                    console.log(`[ML] Walk-forward accuracy: ${cv}% vs baseline ${baseline}%`);
+                })
+                .catch(e => {
+                    statusEl.textContent = `❌ Failed to load model: ${e.message}`;
+                    console.error('[ML] Error:', e);
+                });
+        }
+
+        function loadLast24Hours() {
+            /**
+             * Load intervals from the last 24 hours.
+             * 24 hours = 1440 minutes / 15 min per interval = 96 intervals max
+             */
+            const intervalsToShow = currentIntervals.length > 0 ? currentIntervals : allIntervals;
+            const tbody = document.getElementById('history-table');
+            tbody.innerHTML = '';
+
+            // Filter to last 24 hours
+            const now = new Date();
+            const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+            const last24h = intervalsToShow.filter(iv => {
+                try {
+                    const ivTime = new Date(iv.start);
+                    return ivTime >= dayAgo;
+                } catch (e) {
+                    return false;
+                }
+            });
+
+            // Show most recent first
+            const displayIntervals = last24h.slice().reverse();
+
+            if (displayIntervals.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#80868d;">No data in the last 24 hours</td></tr>';
+                return;
+            }
+
+            for (const interval of displayIntervals) {
+                const contracts = interval.bet / interval.entry;
+                const profit = interval.matched ? (contracts - interval.bet) : -interval.bet;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${new Date(interval.start).toLocaleString()}</td>
+                    <td>$${interval.open.toFixed(2)}</td>
+                    <td>$${interval.close.toFixed(2)}</td>
+                    <td><span class="badge ${interval.closeDir}">${interval.closeDir}</span></td>
+                    <td>$${interval.checkpoint.toFixed(2)}</td>
+                    <td><span class="badge ${interval.cpDir}">${interval.cpDir}</span></td>
+                    <td><span class="badge ${interval.matched ? 'match' : 'mismatch'}">${interval.matched ? 'YES' : 'NO'}</span></td>
+                    <td style="color: ${profit >= 0 ? '#2ecc71' : '#e74c3c'};">${profit > 0 ? '+' : ''}$${profit.toFixed(2)}</td>
+                `;
+                tbody.appendChild(tr);
+            }
+
+            console.log(`[HISTORY] Loaded ${displayIntervals.length} intervals from last 24 hours`);
+        }
+
+        function loadHistoryForDate() {
+            // TODO: Implement date filtering for specific date
+            loadLast24Hours();
+        }
+
+        function updateBacktest() {
+            const bet = parseFloat(document.getElementById('bet-amount').value) || 50;
+            const entry = parseFloat(document.getElementById('entry-price').value) || 0.90;
+
+            let totalWins = 0;
+            let totalIntervals = 0;
+            let dailyPnL = 0;
+
+            const today = new Date().toDateString();
+
+            for (const interval of allIntervals) {
+                if (interval.missed) continue;
+
+                totalIntervals++;
+                const contracts = bet / entry;
+                const profit = interval.matched ? (contracts - bet) : -bet;
+
+                const intervalDate = new Date(interval.start).toDateString();
+                if (intervalDate === today) {
+                    dailyPnL += profit;
+                }
+
+                if (interval.matched) totalWins++;
+            }
+
+            const winRate = totalIntervals > 0 ? (totalWins / totalIntervals * 100) : 0;
+            document.getElementById('win-rate').textContent = `${winRate.toFixed(1)}%`;
+            document.getElementById('daily-pnl').textContent = `${dailyPnL >= 0 ? '+' : ''}$${dailyPnL.toFixed(2)}`;
+            document.getElementById('daily-pnl').className = `value ${dailyPnL >= 0 ? 'positive' : 'negative'}`;
+
+            updateBankroll();
+        }
+
+        function updateBankroll() {
+            const bet = parseFloat(document.getElementById('bet-amount').value) || 50;
+            const entry = parseFloat(document.getElementById('entry-price').value) || 0.90;
+            const startSeed = parseFloat(document.getElementById('start-seed').value) || 100;
+
+            let balance = startSeed;
+            let minBalance = startSeed;
+            let cumulativeLoss = 0;
+
+            const today = new Date().toDateString();
+            let dayBalance = startSeed;
+
+            for (const interval of allIntervals.reverse()) {
+                if (interval.missed) continue;
+
+                const contracts = bet / entry;
+                const profit = interval.matched ? (contracts - bet) : -bet;
+
+                const intervalDate = new Date(interval.start).toDateString();
+                if (intervalDate === today) {
+                    dayBalance += profit;
+                }
+
+                balance += profit;
+                minBalance = Math.min(minBalance, balance);
+                cumulativeLoss = Math.min(cumulativeLoss, balance - startSeed);
+            }
+
+            const maxDrawdown = Math.abs(cumulativeLoss);
+            const minRequired = Math.max(0, startSeed + maxDrawdown);
+            const endingBalance = balance;
+
+            document.getElementById('ending-balance').textContent = `${endingBalance >= startSeed ? '+' : ''}$${(endingBalance - startSeed).toFixed(2)}`;
+            document.getElementById('ending-balance').className = `value ${endingBalance >= startSeed ? 'positive' : 'negative'}`;
+
+            document.getElementById('max-drawdown').textContent = `$${maxDrawdown.toFixed(2)}`;
+            document.getElementById('min-seed').textContent = `$${minRequired.toFixed(2)}`;
+
+            document.getElementById('period-today').textContent = `${dayBalance - startSeed >= 0 ? '+' : ''}$${(dayBalance - startSeed).toFixed(2)}`;
+            document.getElementById('period-month').textContent = '...';
+            document.getElementById('period-year').textContent = '...';
+        }
+
+        function changeCheckpointOffset() {
+            const newOffset = parseInt(document.getElementById('checkpoint-offset').value);
+            if (isNaN(newOffset) || newOffset < 1 || newOffset > 14) {
+                alert('Checkpoint offset must be between 1 and 14 minutes');
+                return;
+            }
+
+            console.log(`[CHECKPOINT] Recalculating with offset: ${newOffset} minutes`);
+
+            // Recompute intervals using raw ticks with new offset
+            const recomputedIntervals = computeIntervalsWithOffset(newOffset);
+
+            // Store the recomputed intervals for history/backtest display
+            currentIntervals = recomputedIntervals;
+
+            // Recalculate stats
+            updateBacktestStats(recomputedIntervals, newOffset);
+            updateLiveStatus();
+
+            // Refresh history if user is on that tab
+            const historyTab = document.getElementById('history-tab');
+            if (historyTab && historyTab.classList.contains('active')) {
+                loadLast24Hours();
+            }
+
+            // Refresh chart to show new checkpoint markers
+            updateChartDisplay();
+
+            console.log(`[CHECKPOINT] Recalculation complete`);
+        }
+
+        function computeIntervalsWithOffset(offsetMinutes) {
+            /**
+             * Recompute interval metrics (open, close, checkpoint prices and directions)
+             * using raw ticks and a new checkpoint offset.
+             */
+            const recomputed = [];
+
+            // Group ticks by 15-minute intervals
+            const intervalsMap = {};
+            allTicks.forEach(tick => {
+                const time = new Date(tick.time);
+                const intervalStart = new Date(time);
+                intervalStart.setUTCMinutes(Math.floor(time.getUTCMinutes() / 15) * 15, 0, 0);
+                const key = intervalStart.toISOString();
+
+                if (!intervalsMap[key]) {
+                    intervalsMap[key] = [];
+                }
+                intervalsMap[key].push(tick);
+            });
+
+            // Compute metrics for each interval
+            Object.keys(intervalsMap).sort().forEach(key => {
+                const ticks = intervalsMap[key];
+                const intervalStart = new Date(key);
+                const intervalEnd = new Date(intervalStart.getTime() + 15 * 60 * 1000);
+                const checkpointTime = new Date(intervalEnd.getTime() - offsetMinutes * 60 * 1000);
+
+                // Interpolate prices
+                const openPrice = interpolatePriceAtTime(ticks, intervalStart);
+                const checkpointPrice = interpolatePriceAtTime(ticks, checkpointTime);
+
+                // Close price comes from next interval's first tick
+                const nextIntervalStart = new Date(intervalEnd);
+                const nextIntervalTicks = allTicks.filter(t => {
+                    const time = new Date(t.time);
+                    return time >= nextIntervalStart && time < new Date(nextIntervalStart.getTime() + 15 * 60 * 1000);
+                });
+                const closePrice = nextIntervalTicks.length > 0
+                    ? interpolatePriceAtTime(nextIntervalTicks, nextIntervalStart)
+                    : null;
+
+                if (openPrice && checkpointPrice && closePrice) {
+                    const closeDir = closePrice > openPrice ? 'above' : 'below';
+                    const cpDir = checkpointPrice > openPrice ? 'above' : 'below';
+                    const matched = closeDir === cpDir;
+
+                    recomputed.push({
+                        start: key,
+                        open: openPrice,
+                        close: closePrice,
+                        checkpoint: checkpointPrice,
+                        cpMinutes: offsetMinutes,
+                        closeDir: closeDir,
+                        cpDir: cpDir,
+                        matched: matched,
+                        missed: false,
+                        bet: 50,
+                        entry: 0.90
+                    });
+                }
+            });
+
+            return recomputed;
+        }
+
+        function interpolatePriceAtTime(ticks, targetTime) {
+            /**
+             * Interpolate price at a specific time from a list of ticks.
+             */
+            if (!ticks || ticks.length === 0) return null;
+
+            let before = null, after = null;
+
+            for (const tick of ticks) {
+                const tickTime = new Date(tick.time);
+                if (tickTime <= targetTime) {
+                    before = tick;
+                }
+                if (tickTime >= targetTime && !after) {
+                    after = tick;
+                }
+            }
+
+            if (before && after) {
+                if (before.time === after.time) {
+                    return before.price;
+                }
+                const t1 = new Date(before.time).getTime();
+                const t2 = new Date(after.time).getTime();
+                const targetMs = targetTime.getTime();
+                const fraction = (targetMs - t1) / (t2 - t1);
+                return before.price + (after.price - before.price) * fraction;
+            }
+            return before ? before.price : (after ? after.price : null);
+        }
+
+        function updateBacktestStats(intervals, offsetMinutes) {
+            /**
+             * Update full backtest statistics based on recomputed intervals.
+             */
+            const bet = parseFloat(document.getElementById('bet-amount').value) || 50;
+            const entry = parseFloat(document.getElementById('entry-price').value) || 0.90;
+            const startSeed = parseFloat(document.getElementById('start-seed').value) || 100;
+
+            let wins = 0, total = 0, dailyPnL = 0;
+            let balance = startSeed;
+            let minBalance = startSeed;
+            let cumulativeLoss = 0;
+            const today = new Date().toDateString();
+
+            // Sort intervals chronologically for bankroll simulation
+            const sortedIntervals = intervals.slice().sort((a, b) => new Date(a.start) - new Date(b.start));
+
+            sortedIntervals.forEach(iv => {
+                if (!iv.missed) {
+                    total++;
+                    const contracts = bet / entry;
+                    const profit = iv.matched ? (contracts - bet) : -bet;
+
+                    balance += profit;
+                    minBalance = Math.min(minBalance, balance);
+                    cumulativeLoss = Math.min(cumulativeLoss, balance - startSeed);
+
+                    if (new Date(iv.start).toDateString() === today) {
+                        dailyPnL += profit;
+                    }
+
+                    if (iv.matched) wins++;
+                }
+            });
+
+            const winRate = total > 0 ? (wins / total * 100) : 0;
+            const maxDrawdown = Math.abs(cumulativeLoss);
+            const minRequired = Math.max(0, startSeed + maxDrawdown);
+            const endingBalance = balance;
+
+            // Update UI - summary stats
+            document.getElementById('win-rate').textContent = `${winRate.toFixed(1)}%`;
+            document.getElementById('daily-pnl').textContent = `${dailyPnL >= 0 ? '+' : ''}$${dailyPnL.toFixed(2)}`;
+            document.getElementById('daily-pnl').className = `value ${dailyPnL >= 0 ? 'positive' : 'negative'}`;
+            document.getElementById('total-intervals').textContent = total;
+
+            // Update UI - bankroll simulation (show actual account balance)
+            const balanceChange = endingBalance - startSeed;
+            document.getElementById('ending-balance').textContent = `$${endingBalance.toFixed(2)}`;
+            document.getElementById('ending-balance').className = `value ${balanceChange >= 0 ? 'positive' : 'negative'}`;
+
+            // Show change as subtitle
+            const changeText = document.createElement('div');
+            changeText.style.fontSize = '0.8em';
+            changeText.style.color = '#a0a6ad';
+            changeText.style.marginTop = '5px';
+            changeText.textContent = `(${balanceChange >= 0 ? '+' : ''}$${balanceChange.toFixed(2)})`;
+
+            const balanceBox = document.getElementById('ending-balance').parentElement;
+            const existingChange = balanceBox.querySelector('div[style*="font-size: 0.8em"]');
+            if (existingChange) existingChange.remove();
+            balanceBox.appendChild(changeText);
+            document.getElementById('max-drawdown').textContent = `$${maxDrawdown.toFixed(2)}`;
+            document.getElementById('min-seed').textContent = `$${minRequired.toFixed(2)}`;
+
+            // Update period totals
+            document.getElementById('period-today').textContent = `${dailyPnL >= 0 ? '+' : ''}$${dailyPnL.toFixed(2)}`;
+            document.getElementById('period-month').textContent = `...`;
+            document.getElementById('period-year').textContent = `...`;
+
+            console.log(`[BACKTEST] Offset ${offsetMinutes}min: ${winRate.toFixed(1)}% (${wins}/${total}) | Drawdown: $${maxDrawdown.toFixed(2)} | Min Seed: $${minRequired.toFixed(2)}`);
+        }
+
+        function runOffsetAnalysis() {
+            const resultsDiv = document.getElementById('offset-results');
+            resultsDiv.innerHTML = '<p style="color: #80868d;">📊 Analysis running...</p>';
+
+            fetch('/api/analyze')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        resultsDiv.innerHTML = `<p style="color: #e74c3c;">Error: ${data.error}</p>`;
+                        return;
+                    }
+
+                    let html = '<div class="offset-accuracy"><table><thead><tr><th>Checkpoint Offset (min)</th><th>Accuracy</th><th>Correct / Total</th></tr></thead><tbody>';
+
+                    for (let i = 1; i <= 15; i++) {
+                        if (data[i]) {
+                            const r = data[i];
+                            const accuracy = r.accuracy;
+                            const row = data[i];
+                            html += `<tr>
+                                <td>${i}</td>
+                                <td style="color: ${accuracy > 50 ? '#2ecc71' : '#e74c3c'}; font-weight: 600;">${accuracy.toFixed(2)}%</td>
+                                <td>${row.correct}/${row.total}</td>
+                            </tr>`;
+                        }
+                    }
+
+                    html += '</tbody></table></div>';
+                    resultsDiv.innerHTML = html;
+                })
+                .catch(e => {
+                    resultsDiv.innerHTML = `<p style="color: #e74c3c;">Failed to load analysis: ${e.message}</p>`;
+                });
+        }
+
+        // Start the app
+        init();
+    </script>
+</body>
+</html>
