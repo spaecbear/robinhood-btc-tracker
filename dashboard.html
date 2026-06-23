@@ -422,24 +422,26 @@
                 </div>
             </div>
             <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(0, 200, 200, 0.2);">
-                <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: center;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <label style="color: #80868d; font-size: 0.9em;">Checkpoint Offset (min):</label>
-                        <input type="number" id="checkpoint-offset" min="1" max="14" value="5" style="width: 70px;" onchange="changeCheckpointOffset()">
-                        <button onclick="changeCheckpointOffset()" style="padding: 8px 12px; font-size: 0.8em;">↻ Recalc</button>
+                <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="color: #80868d; font-size: 0.9em;">Checkpoint Offset (min):</label>
+                            <input type="number" id="checkpoint-offset" min="1" max="14" value="5" style="width: 70px;" onchange="changeCheckpointOffset()">
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="color: #80868d; font-size: 0.9em;">Bet ($):</label>
+                            <input type="number" id="bet-amount-live" min="1" step="10" value="50" style="width: 70px;" oninput="updateBacktestLive()">
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="color: #80868d; font-size: 0.9em;">Entry ($):</label>
+                            <input type="number" id="entry-price-live" min="0.01" step="0.05" value="0.90" style="width: 70px;" oninput="updateBacktestLive()">
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="color: #80868d; font-size: 0.9em;">Seed ($):</label>
+                            <input type="number" id="start-seed-live" min="10" step="50" value="100" style="width: 70px;" oninput="updateBacktestLive()">
+                        </div>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <label style="color: #80868d; font-size: 0.9em;">Bet ($):</label>
-                        <input type="number" id="bet-amount-live" min="1" step="10" value="50" style="width: 70px;" oninput="updateBacktestLive()">
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <label style="color: #80868d; font-size: 0.9em;">Entry ($):</label>
-                        <input type="number" id="entry-price-live" min="0.01" step="0.05" value="0.90" style="width: 70px;" oninput="updateBacktestLive()">
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <label style="color: #80868d; font-size: 0.9em;">Seed ($):</label>
-                        <input type="number" id="start-seed-live" min="10" step="50" value="100" style="width: 70px;" oninput="updateBacktestLive()">
-                    </div>
+                    <button onclick="changeCheckpointOffset()" style="padding: 8px 12px; font-size: 0.8em; white-space: nowrap;">↻ Recalc All</button>
                 </div>
             </div>
             <div class="refresh-time" id="last-update">Last update: --</div>
@@ -1456,26 +1458,93 @@
 
         function updateBacktestLive() {
             /**
-             * Sync the "live" backtest inputs to the backtest tab inputs,
-             * then recalculate the backtest.
+             * Read from live inputs and recalculate backtest directly.
              */
-            const betLive = document.getElementById('bet-amount-live').value;
-            const entryLive = document.getElementById('entry-price-live').value;
-            const seedLive = document.getElementById('start-seed-live').value;
+            const bet = parseFloat(document.getElementById('bet-amount-live').value) || 50;
+            const entry = parseFloat(document.getElementById('entry-price-live').value) || 0.90;
+            const startSeed = parseFloat(document.getElementById('start-seed-live').value) || 100;
 
-            // Sync to backtest tab inputs (if they exist)
-            if (document.getElementById('bet-amount')) {
-                document.getElementById('bet-amount').value = betLive;
-            }
-            if (document.getElementById('entry-price')) {
-                document.getElementById('entry-price').value = entryLive;
-            }
-            if (document.getElementById('start-seed')) {
-                document.getElementById('start-seed').value = seedLive;
+            // Update daily P&L
+            let totalWins = 0;
+            let totalIntervals = 0;
+            let dailyPnL = 0;
+            const today = new Date().toDateString();
+
+            const intervalsToUse = currentIntervals.length > 0 ? currentIntervals : allIntervals;
+
+            for (const interval of intervalsToUse) {
+                if (interval.missed) continue;
+
+                totalIntervals++;
+                const contracts = bet / entry;
+                const profit = interval.matched ? (contracts - bet) : -bet;
+
+                const intervalDate = new Date(interval.start).toDateString();
+                if (intervalDate === today) {
+                    dailyPnL += profit;
+                }
+
+                if (interval.matched) totalWins++;
             }
 
-            // Trigger backtest update
-            updateBacktest();
+            // Update UI
+            const winRate = totalIntervals > 0 ? (totalWins / totalIntervals * 100) : 0;
+            document.getElementById('win-rate').textContent = `${winRate.toFixed(1)}%`;
+            document.getElementById('daily-pnl').textContent = `${dailyPnL >= 0 ? '+' : ''}$${dailyPnL.toFixed(2)}`;
+            document.getElementById('daily-pnl').className = `value ${dailyPnL >= 0 ? 'positive' : 'negative'}`;
+            document.getElementById('total-intervals').textContent = totalIntervals;
+
+            // Update bankroll
+            let balance = startSeed;
+            let minBalance = startSeed;
+            let cumulativeLoss = 0;
+            let dayBalance = startSeed;
+
+            for (const interval of intervalsToUse.slice().reverse()) {
+                if (interval.missed) continue;
+
+                const contracts = bet / entry;
+                const profit = interval.matched ? (contracts - bet) : -bet;
+
+                const intervalDate = new Date(interval.start).toDateString();
+                if (intervalDate === today) {
+                    dayBalance += profit;
+                }
+
+                balance += profit;
+                minBalance = Math.min(minBalance, balance);
+                cumulativeLoss = Math.min(cumulativeLoss, balance - startSeed);
+            }
+
+            const maxDrawdown = Math.abs(cumulativeLoss);
+            const minRequired = Math.max(0, startSeed + maxDrawdown);
+            const endingBalance = balance;
+
+            // Update ending balance with correct format
+            const balanceChange = endingBalance - startSeed;
+            document.getElementById('ending-balance').textContent = `$${endingBalance.toFixed(2)}`;
+            document.getElementById('ending-balance').className = `value ${balanceChange >= 0 ? 'positive' : 'negative'}`;
+
+            // Show change as subtitle
+            const changeText = document.createElement('div');
+            changeText.style.fontSize = '0.8em';
+            changeText.style.color = '#a0a6ad';
+            changeText.style.marginTop = '5px';
+            changeText.textContent = `(${balanceChange >= 0 ? '+' : ''}$${balanceChange.toFixed(2)})`;
+
+            const balanceBox = document.getElementById('ending-balance').parentElement;
+            const existingChange = balanceBox.querySelector('div[style*="font-size: 0.8em"]');
+            if (existingChange) existingChange.remove();
+            balanceBox.appendChild(changeText);
+
+            document.getElementById('max-drawdown').textContent = `$${maxDrawdown.toFixed(2)}`;
+            document.getElementById('min-seed').textContent = `$${minRequired.toFixed(2)}`;
+
+            document.getElementById('period-today').textContent = `${dayBalance - startSeed >= 0 ? '+' : ''}$${(dayBalance - startSeed).toFixed(2)}`;
+            document.getElementById('period-month').textContent = '...';
+            document.getElementById('period-year').textContent = '...';
+
+            console.log(`[BACKTEST] Updated: bet=$${bet}, entry=$${entry}, seed=$${startSeed}`);
         }
 
         function changeCheckpointOffset() {
