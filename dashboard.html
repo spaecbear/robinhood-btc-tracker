@@ -772,19 +772,13 @@
                 const seconds = secondsLeft % 60;
                 document.getElementById('time-to-close').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 
-                // Update daily P&L
-                const dailyPnL = calculateDailyPnL(data);
-                const pnlEl = document.querySelector('[id="daily-pnl"]');
-                pnlEl.textContent = `${dailyPnL > 0 ? '+' : ''}$${dailyPnL.toFixed(2)}`;
-                pnlEl.className = `value ${dailyPnL >= 0 ? 'positive' : 'negative'}`;
-
-                // Update win rate
-                const winRate = calculateWinRate();
-                document.getElementById('win-rate').textContent = `${winRate.toFixed(1)}%`;
-
+                // Update total intervals count
                 document.getElementById('total-intervals').textContent = allIntervals.length;
 
                 document.getElementById('last-update').textContent = `Last update: ${new Date().toLocaleTimeString()}`;
+
+                // Update backtest using live parameters (this will also update daily P&L, win rate)
+                updateBacktestLive();
             } catch (e) {
                 console.error('Error updating status:', e);
             }
@@ -1460,17 +1454,25 @@
             /**
              * Read from live inputs and recalculate backtest directly.
              */
-            const bet = parseFloat(document.getElementById('bet-amount-live').value) || 50;
-            const entry = parseFloat(document.getElementById('entry-price-live').value) || 0.90;
-            const startSeed = parseFloat(document.getElementById('start-seed-live').value) || 100;
+            try {
+                const bet = parseFloat(document.getElementById('bet-amount-live').value) || 50;
+                const entry = parseFloat(document.getElementById('entry-price-live').value) || 0.90;
+                const startSeed = parseFloat(document.getElementById('start-seed-live').value) || 100;
 
-            // Update daily P&L
-            let totalWins = 0;
-            let totalIntervals = 0;
-            let dailyPnL = 0;
-            const today = new Date().toDateString();
+                console.log(`[BACKTEST-LIVE] Updating with: bet=$${bet}, entry=$${entry}, seed=$${startSeed}`);
 
-            const intervalsToUse = currentIntervals.length > 0 ? currentIntervals : allIntervals;
+                // Update daily P&L
+                let totalWins = 0;
+                let totalIntervals = 0;
+                let dailyPnL = 0;
+                const today = new Date().toDateString();
+
+                const intervalsToUse = currentIntervals.length > 0 ? currentIntervals : allIntervals;
+
+                if (intervalsToUse.length === 0) {
+                    console.warn('[BACKTEST-LIVE] No intervals to calculate');
+                    return;
+                }
 
             for (const interval of intervalsToUse) {
                 if (interval.missed) continue;
@@ -1544,7 +1546,10 @@
             document.getElementById('period-month').textContent = '...';
             document.getElementById('period-year').textContent = '...';
 
-            console.log(`[BACKTEST] Updated: bet=$${bet}, entry=$${entry}, seed=$${startSeed}`);
+            console.log(`[BACKTEST-LIVE] ✓ Complete. Win rate: ${winRate.toFixed(1)}%, Daily P&L: $${dailyPnL.toFixed(2)}, Balance: $${endingBalance.toFixed(2)}`);
+            } catch (error) {
+                console.error('[BACKTEST-LIVE] Error:', error);
+            }
         }
 
         function changeCheckpointOffset() {
