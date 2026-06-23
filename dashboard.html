@@ -402,13 +402,7 @@
 
         <!-- Live Status Panel -->
         <div class="panel">
-            <h2>Live Status
-                <div style="float: right; font-size: 0.9em; display: flex; align-items: center; gap: 10px;">
-                    <label style="color: #80868d;">Checkpoint Offset (min):</label>
-                    <input type="number" id="checkpoint-offset" min="1" max="14" value="5" style="width: 60px;" onchange="changeCheckpointOffset()">
-                    <button onclick="changeCheckpointOffset()" style="padding: 8px 12px; font-size: 0.8em;">↻ Recalc</button>
-                </div>
-            </h2>
+            <h2>Live Status & Backtest Controls</h2>
             <div class="status-bar">
                 <div class="stat-card">
                     <div class="stat-label">Current Price</div>
@@ -425,6 +419,27 @@
                 <div class="stat-card">
                     <div class="stat-label">Time to Close</div>
                     <div class="stat-value" id="time-to-close">--:--</div>
+                </div>
+            </div>
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(0, 200, 200, 0.2);">
+                <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <label style="color: #80868d; font-size: 0.9em;">Checkpoint Offset (min):</label>
+                        <input type="number" id="checkpoint-offset" min="1" max="14" value="5" style="width: 70px;" onchange="changeCheckpointOffset()">
+                        <button onclick="changeCheckpointOffset()" style="padding: 8px 12px; font-size: 0.8em;">↻ Recalc</button>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <label style="color: #80868d; font-size: 0.9em;">Bet ($):</label>
+                        <input type="number" id="bet-amount-live" min="1" step="10" value="50" style="width: 70px;" oninput="updateBacktestLive()">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <label style="color: #80868d; font-size: 0.9em;">Entry ($):</label>
+                        <input type="number" id="entry-price-live" min="0.01" step="0.05" value="0.90" style="width: 70px;" oninput="updateBacktestLive()">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <label style="color: #80868d; font-size: 0.9em;">Seed ($):</label>
+                        <input type="number" id="start-seed-live" min="10" step="50" value="100" style="width: 70px;" oninput="updateBacktestLive()">
+                    </div>
                 </div>
             </div>
             <div class="refresh-time" id="last-update">Last update: --</div>
@@ -1453,6 +1468,30 @@
             document.getElementById('period-year').textContent = '...';
         }
 
+        function updateBacktestLive() {
+            /**
+             * Sync the "live" backtest inputs to the backtest tab inputs,
+             * then recalculate the backtest.
+             */
+            const betLive = document.getElementById('bet-amount-live').value;
+            const entryLive = document.getElementById('entry-price-live').value;
+            const seedLive = document.getElementById('start-seed-live').value;
+
+            // Sync to backtest tab inputs (if they exist)
+            if (document.getElementById('bet-amount')) {
+                document.getElementById('bet-amount').value = betLive;
+            }
+            if (document.getElementById('entry-price')) {
+                document.getElementById('entry-price').value = entryLive;
+            }
+            if (document.getElementById('start-seed')) {
+                document.getElementById('start-seed').value = seedLive;
+            }
+
+            // Trigger backtest update
+            updateBacktest();
+        }
+
         function changeCheckpointOffset() {
             const newOffset = parseInt(document.getElementById('checkpoint-offset').value);
             if (isNaN(newOffset) || newOffset < 1 || newOffset > 14) {
@@ -1480,6 +1519,9 @@
 
             // Refresh chart to show new checkpoint markers
             updateChartDisplay();
+
+            // Also update backtest with current live params
+            updateBacktestLive();
 
             console.log(`[CHECKPOINT] Recalculation complete`);
         }
