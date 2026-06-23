@@ -1225,9 +1225,10 @@
             const statusEl = document.getElementById('ml-status');
             statusEl.textContent = '⏳ Training model on logged data...';
 
-            // Reset display
-            ['ml-baseline', 'ml-cv', 'ml-edge', 'ml-train', 'ml-test', 'ml-overfit', 'ml-next'].forEach(id => {
-                document.getElementById(id).textContent = '—';
+            // Reset display (only for elements that exist)
+            ['ml-baseline', 'ml-cv', 'ml-edge', 'ml-overfit', 'ml-samples', 'ml-correct-count', 'ml-total-count'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = '—';
             });
 
             fetch('/api/ml')
