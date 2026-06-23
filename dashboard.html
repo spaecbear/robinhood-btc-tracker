@@ -878,7 +878,10 @@
                         // Checkpoints are at interval_start + (15 - checkpoint_minutes)
                         const cpOffset = parseInt(document.getElementById('checkpoint-offset').value) || 5;
 
-                        allIntervals.forEach(interval => {
+                        // Use currentIntervals if they exist (recomputed with new offset), otherwise use allIntervals
+                        const intervalsForCheckpoints = currentIntervals.length > 0 ? currentIntervals : allIntervals;
+
+                        intervalsForCheckpoints.forEach(interval => {
                             try {
                                 const intervalStart = new Date(interval.start);
                                 const checkpointTime = new Date(intervalStart.getTime() + (15 - cpOffset) * 60 * 1000);
