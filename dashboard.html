@@ -612,33 +612,33 @@
                 </div>
 
                 <div class="summary-grid">
-                    <div class="summary-box" style="border-color: rgba(0, 200, 200, 0.6); box-shadow: 0 0 20px rgba(0, 200, 200, 0.3);">
+                    <div class="summary-box" style="border-color: rgba(0, 200, 200, 0.6); box-shadow: 0 0 20px rgba(0, 200, 200, 0.3); cursor: help;" title="The model's prediction accuracy on completely unseen data (walk-forward cross-validation). This is your honest estimate of real-world performance.">
                         <h3>Model Accuracy (Honest)</h3>
                         <div class="value" id="ml-cv" style="font-size: 2.5em;">—</div>
                         <div style="font-size: 0.8em; color: #a0a6ad; margin-top: 5px;">Walk-forward out-of-sample</div>
                     </div>
-                    <div class="summary-box" style="border-color: rgba(0, 200, 200, 0.4);">
+                    <div class="summary-box" style="border-color: rgba(0, 200, 200, 0.4); cursor: help;" title="Total number of 15-minute intervals used to train and test the model. More data = more reliable results.">
                         <h3>Data Points (Intervals)</h3>
                         <div class="value" id="ml-samples" style="font-size: 2em;">—</div>
                         <div style="font-size: 0.8em; color: #a0a6ad; margin-top: 5px;">Usable for training</div>
                     </div>
-                    <div class="summary-box">
+                    <div class="summary-box" style="cursor: help;" title="Number of intervals where the model's prediction matched the actual outcome.">
                         <h3>Correct Predictions</h3>
                         <div class="value" id="ml-correct-count">—</div>
                     </div>
-                    <div class="summary-box">
+                    <div class="summary-box" style="cursor: help;" title="Total number of out-of-sample predictions evaluated in the walk-forward test.">
                         <h3>Total Predictions</h3>
                         <div class="value" id="ml-total-count">—</div>
                     </div>
-                    <div class="summary-box">
+                    <div class="summary-box" style="cursor: help;" title="Accuracy if you just guessed the most common outcome every time (naive strategy). Your model should beat this.">
                         <h3>Baseline (Majority)</h3>
                         <div class="value" id="ml-baseline">—</div>
                     </div>
-                    <div class="summary-box">
+                    <div class="summary-box" style="cursor: help;" title="How much better the model is than baseline. Positive = model has an edge. Negative = model is worse than guessing.">
                         <h3>Edge vs Baseline</h3>
                         <div class="value" id="ml-edge">—</div>
                     </div>
-                    <div class="summary-box">
+                    <div class="summary-box" style="cursor: help;" title="Difference between training accuracy and test accuracy. Large gap (>10 pts) means the model is overfitting—learning noise instead of signal.">
                         <h3>Overfit Gap</h3>
                         <div class="value" id="ml-overfit">—</div>
                     </div>
