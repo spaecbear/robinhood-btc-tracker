@@ -916,11 +916,11 @@
                                         ? 'rgba(46, 204, 113, 0.7)'   // green if correct
                                         : 'rgba(231, 76, 60, 0.7)';   // red if wrong
 
-                                    // Draw dotted checkpoint line (thinner and dotted, not dashed)
+                                    // Draw solid checkpoint line for easy visibility
                                     ctx.save();
                                     ctx.strokeStyle = cpColor;
-                                    ctx.lineWidth = 2;
-                                    ctx.setLineDash([2, 4]); // dots instead of dashes
+                                    ctx.lineWidth = 2.5;
+                                    ctx.setLineDash([]); // solid line
                                     ctx.beginPath();
                                     ctx.moveTo(x, chartArea.top);
                                     ctx.lineTo(x, chartArea.bottom);
