@@ -512,6 +512,7 @@
                                 <th>Checkpoint</th>
                                 <th>CP Dir</th>
                                 <th>Match</th>
+                                <th>Total Return</th>
                                 <th>P&L</th>
                             </tr>
                         </thead>
@@ -1360,6 +1361,7 @@
                 // Calculate P&L using live parameters, not stored values
                 const contracts = bet / entry;
                 const profit = interval.matched ? (contracts - bet) : -bet;
+                const totalReturn = interval.matched ? contracts : 0;
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -1370,6 +1372,7 @@
                     <td>$${interval.checkpoint.toFixed(2)}</td>
                     <td><span class="badge ${interval.cpDir}">${interval.cpDir}</span></td>
                     <td><span class="badge ${interval.matched ? 'match' : 'mismatch'}">${interval.matched ? 'YES' : 'NO'}</span></td>
+                    <td style="color: ${interval.matched ? '#2ecc71' : '#e74c3c'}; font-weight: 600;">$${totalReturn.toFixed(2)}</td>
                     <td style="color: ${profit >= 0 ? '#2ecc71' : '#e74c3c'};">${profit > 0 ? '+' : ''}$${profit.toFixed(2)}</td>
                 `;
                 tbody.appendChild(tr);
