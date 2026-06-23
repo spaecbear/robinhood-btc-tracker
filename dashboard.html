@@ -1322,10 +1322,15 @@
             /**
              * Load intervals from the last 24 hours.
              * 24 hours = 1440 minutes / 15 min per interval = 96 intervals max
+             * P&L is calculated using current live parameters (bet, entry, seed).
              */
             const intervalsToShow = currentIntervals.length > 0 ? currentIntervals : allIntervals;
             const tbody = document.getElementById('history-table');
             tbody.innerHTML = '';
+
+            // Read live backtest parameters
+            const bet = parseFloat(document.getElementById('bet-amount-live').value) || 50;
+            const entry = parseFloat(document.getElementById('entry-price-live').value) || 0.90;
 
             // Filter to last 24 hours
             const now = new Date();
@@ -1349,8 +1354,9 @@
             }
 
             for (const interval of displayIntervals) {
-                const contracts = interval.bet / interval.entry;
-                const profit = interval.matched ? (contracts - interval.bet) : -interval.bet;
+                // Calculate P&L using live parameters, not stored values
+                const contracts = bet / entry;
+                const profit = interval.matched ? (contracts - bet) : -bet;
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -1366,7 +1372,7 @@
                 tbody.appendChild(tr);
             }
 
-            console.log(`[HISTORY] Loaded ${displayIntervals.length} intervals from last 24 hours`);
+            console.log(`[HISTORY] Loaded ${displayIntervals.length} intervals from last 24 hours (using live params: bet=$${bet}, entry=$${entry})`);
         }
 
         function loadHistoryForDate() {
