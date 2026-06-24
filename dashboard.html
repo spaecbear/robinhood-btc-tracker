@@ -1277,16 +1277,28 @@
             const tbody = document.getElementById('ladder-history');
             tbody.innerHTML = '';
 
-            // Helper: Estimate probability from price change
-            const estimateProbability = (currentPrice, openPrice, direction) => {
-                const pctChange = (currentPrice - openPrice) / openPrice;
+            // Helper: Estimate contract price (and thus probability) from price move + time remaining
+            const estimateContractPrice = (currentPrice, openPrice, direction, minutesRemaining) => {
+                // Calculate price movement as percentage
+                const pctChange = (currentPrice - openPrice) / openPrice * 100;  // as percentage
                 const dirMultiplier = direction === 'above' ? 1 : -1;
-                // Multiplier of 5 means: 1% move = 5% prob. Try lowering for more sensitivity
-                const prob = 0.5 + (pctChange * dirMultiplier * 5);
-                const clamped = Math.max(0.1, Math.min(0.9, prob));
+                const signedMove = pctChange * dirMultiplier;  // positive if in bet direction
+
+                // Time factor: less time remaining = more confident per unit of move
+                // At 14 min: 0.7x multiplier, At 8 min: 1.0x, At 5 min: 1.3x, At 1 min: 1.8x
+                const timeMultiplier = 2.0 - (minutesRemaining / 15);
+
+                // Contract price = base (0.50) + (move% / 100) × time multiplier
+                // Each 1% move = ~0.01 contract adjusted by time
+                const contractPrice = 0.50 + ((signedMove / 100) * timeMultiplier);
+
+                // Clamp between 0.10 and 0.90
+                const clamped = Math.max(0.10, Math.min(0.90, contractPrice));
+
                 maxProb = Math.max(maxProb, clamped);
                 avgProb += clamped;
                 probCount++;
+
                 return clamped;
             };
 
@@ -1321,7 +1333,8 @@
 
                     // RUNG 1: Monitor from 14-min, exit on profit/loss
                     const rung1Dir = cp1Price >= interval.open ? 'above' : 'below';
-                    const rung1Prob = estimateProbability(cp1Price, interval.open, rung1Dir);
+                    const minutesLeftRung1 = rung1Offset;  // 14 minutes remaining
+                    const rung1Prob = estimateContractPrice(cp1Price, interval.open, rung1Dir, minutesLeftRung1);
 
                     let rung1Profit = 0;
                     let rung1Status = '';
