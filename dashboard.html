@@ -1257,20 +1257,44 @@
              * Rung 1: 14-min checkpoint. Rung 2: 5-min checkpoint.
              * Calculate if both match, if only rung 1 matches, or if rung 1 fails.
              */
-            console.log('[LADDER] Analyzing ladder attempts...');
+            console.log('[LADDER] Analyzing ladder strategy with probability estimation...');
 
             const seed = 25;
             const entry = 0.90;
             const rung1Offset = 14;  // minutes before close
             const rung2Offset = 5;
+            const profitTarget = 0.80;   // Sell when prob reaches 80%
+            const lossThreshold = 0.60;  // Sell if prob drops to 60%
 
+            let profitableR1 = 0;
+            let lossR1 = 0;
             let completeLadders = 0;
-            let failedR1 = 0;
-            let failedR2 = 0;
             let totalProfit = 0;
 
             const tbody = document.getElementById('ladder-history');
             tbody.innerHTML = '';
+
+            // Helper: Estimate probability from price change
+            const estimateProbability = (currentPrice, openPrice, direction) => {
+                const pctChange = (currentPrice - openPrice) / openPrice;
+                const dirMultiplier = direction === 'above' ? 1 : -1;
+                const prob = 0.5 + (pctChange * dirMultiplier * 5);  // Each 1% = ~5% prob
+                return Math.max(0.1, Math.min(0.9, prob));
+            };
+
+            // Helper: Find price at time
+            const getPriceAtTime = (ticks, targetTime) => {
+                let closest = ticks[0];
+                let closestDist = Math.abs(new Date(ticks[0].time) - targetTime);
+                for (let i = 1; i < ticks.length; i++) {
+                    const dist = Math.abs(new Date(ticks[i].time) - targetTime);
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                        closest = ticks[i];
+                    }
+                }
+                return closestDist < 120000 ? closest.price : null;
+            };
 
             // Analyze each interval
             allIntervals.forEach((interval, idx) => {
@@ -1279,113 +1303,104 @@
                     const intervalEnd = new Date(interval.start);
                     intervalEnd.setMinutes(intervalEnd.getMinutes() + 15);
 
-                    // Calculate checkpoint times
                     const cp1Time = new Date(intervalEnd.getTime() - rung1Offset * 60 * 1000);
                     const cp2Time = new Date(intervalEnd.getTime() - rung2Offset * 60 * 1000);
 
-                    // Find prices at checkpoint times (closest price within 2 minutes)
-                    const getPriceAtTime = (ticks, targetTime) => {
-                        let closest = ticks[0];
-                        let closestDist = Math.abs(new Date(ticks[0].time) - targetTime);
-                        for (let i = 1; i < ticks.length; i++) {
-                            const dist = Math.abs(new Date(ticks[i].time) - targetTime);
-                            if (dist < closestDist) {
-                                closestDist = dist;
-                                closest = ticks[i];
-                            }
-                        }
-                        return closestDist < 120000 ? closest.price : null;
-                    };
                     const cp1Price = getPriceAtTime(allTicks, cp1Time);
                     const cp2Price = getPriceAtTime(allTicks, cp2Time);
 
-                    if (!cp1Price || !cp2Price) return; // Skip if can't determine prices
+                    if (!cp1Price || !cp2Price) return;
 
-                    // Rung 1: Did 14-min checkpoint direction match final close?
-                    const cp1Dir = cp1Price >= interval.open ? 'above' : 'below';
+                    // RUNG 1: Monitor from 14-min, exit on profit/loss
+                    const rung1Dir = cp1Price >= interval.open ? 'above' : 'below';
+                    const rung1Prob = estimateProbability(cp1Price, interval.open, rung1Dir);
+
+                    let rung1Profit = 0;
+                    let rung1Status = '';
+
+                    if (rung1Prob >= profitTarget) {
+                        // Hit 80%+: SELL and take profit
+                        rung1Profit = (seed / entry) - seed;
+                        rung1Status = '✅ Profit';
+                        profitableR1++;
+                    } else if (rung1Prob < lossThreshold) {
+                        // Dropped below 60%: CUT LOSS
+                        rung1Profit = -0.50;
+                        rung1Status = '❌ Loss';
+                        lossR1++;
+                    } else {
+                        // Still monitoring, didn't reach exit: skip
+                        return;
+                    }
+
+                    // RUNG 2: Ride to completion (final close)
+                    const cp2Dir = cp2Price >= interval.open ? 'above' : 'below';
                     const finalDir = interval.close >= interval.open ? 'above' : 'below';
-                    const rung1Won = cp1Dir === finalDir;
 
-                    if (!rung1Won) {
-                        failedR1++;
+                    let rung2Profit = 0;
+                    let rung2Status = '';
+
+                    if (rung1Profit <= 0) {
+                        // Rung 1 lost, skip rung 2
+                        totalProfit += rung1Profit;
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
                             <td>${new Date(interval.start).toLocaleString().split(',')[1]}</td>
-                            <td><span class="badge mismatch">❌ ${cp1Dir}</span></td>
-                            <td style="color: #e74c3c;">-$25.00</td>
+                            <td><span class="badge mismatch">${rung1Dir} (${(rung1Prob*100).toFixed(0)}%)</span></td>
+                            <td style="color: #e74c3c;">$${rung1Profit.toFixed(2)}</td>
                             <td>—</td>
                             <td>—</td>
-                            <td style="color: #e74c3c;">-$25.00</td>
+                            <td style="color: #e74c3c;">$${rung1Profit.toFixed(2)}</td>
                             <td><span class="badge mismatch">Failed R1</span></td>
                         `;
                         tbody.appendChild(tr);
                         return;
                     }
 
-                    // Rung 1 won: calculate profit
-                    const r1Contracts = seed / entry;
-                    const r1Payout = r1Contracts;
-                    const r1Profit = r1Payout - seed;
-                    const r1Balance = seed + r1Profit;
+                    // Rung 1 won, check Rung 2
+                    const rung1Balance = seed + rung1Profit;
 
-                    // Rung 2: Did 5-min checkpoint direction match final close?
-                    const cp2Dir = cp2Price >= interval.open ? 'above' : 'below';
-                    const rung2Won = cp2Dir === finalDir;
-
-                    if (!rung2Won) {
-                        failedR2++;
-                        totalProfit += r1Profit;
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `
-                            <td>${new Date(interval.start).toLocaleString().split(',')[1]}</td>
-                            <td><span class="badge match">✅ ${cp1Dir}</span></td>
-                            <td style="color: #2ecc71;">+$${r1Profit.toFixed(2)}</td>
-                            <td><span class="badge mismatch">❌ ${cp2Dir}</span></td>
-                            <td style="color: #e74c3c;">-$${r1Profit.toFixed(2)}</td>
-                            <td style="color: #e74c3c;">-$${r1Profit.toFixed(2)}</td>
-                            <td><span class="badge mismatch">Failed R2</span></td>
-                        `;
-                        tbody.appendChild(tr);
-                        return;
+                    if (cp2Dir === finalDir) {
+                        rung2Profit = (rung1Balance / entry) - rung1Balance;
+                        rung2Status = '✅ Won';
+                        completeLadders++;
+                    } else {
+                        rung2Profit = -(rung1Profit);
+                        rung2Status = '❌ Lost';
                     }
 
-                    // Both rungs won!
-                    completeLadders++;
-                    const r2Contracts = r1Balance / entry;
-                    const r2Payout = r2Contracts;
-                    const r2Profit = r2Payout - r1Balance;
-                    const totalLadderProfit = r1Profit + r2Profit;
+                    const totalLadderProfit = rung1Profit + rung2Profit;
                     totalProfit += totalLadderProfit;
 
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td>${new Date(interval.start).toLocaleString().split(',')[1]}</td>
-                        <td><span class="badge match">✅ ${cp1Dir}</span></td>
-                        <td style="color: #2ecc71;">+$${r1Profit.toFixed(2)}</td>
-                        <td><span class="badge match">✅ ${cp2Dir}</span></td>
-                        <td style="color: #2ecc71;">+$${r2Profit.toFixed(2)}</td>
-                        <td style="color: #2ecc71; font-weight: 600;">+$${totalLadderProfit.toFixed(2)}</td>
-                        <td><span class="badge match">✅ Complete</span></td>
+                        <td><span class="badge match">${rung1Dir} (${(rung1Prob*100).toFixed(0)}%)</span></td>
+                        <td style="color: #2ecc71;">+$${rung1Profit.toFixed(2)}</td>
+                        <td><span class="badge ${cp2Dir === finalDir ? 'match' : 'mismatch'}">${cp2Dir}</span></td>
+                        <td style="color: ${rung2Profit >= 0 ? '#2ecc71' : '#e74c3c'};">$${rung2Profit.toFixed(2)}</td>
+                        <td style="color: ${totalLadderProfit >= 0 ? '#2ecc71' : '#e74c3c'}; font-weight: 600;">$${totalLadderProfit.toFixed(2)}</td>
+                        <td><span class="badge ${totalLadderProfit >= 0 ? 'match' : 'mismatch'}">${rung2Status}</span></td>
                     `;
                     tbody.appendChild(tr);
 
                 } catch (e) {
-                    console.error('[LADDER] Error analyzing interval:', e);
+                    console.error('[LADDER] Error:', e);
                 }
             });
 
             // Update summary
-            const totalAttempts = completeLadders + failedR1 + failedR2;
+            const totalAttempts = profitableR1 + lossR1 + completeLadders;
             const winRate = totalAttempts > 0 ? (completeLadders / totalAttempts * 100) : 0;
 
             document.getElementById('ladder-total-profit').textContent = `$${totalProfit.toFixed(2)}`;
             document.getElementById('ladder-total-profit').style.color = totalProfit >= 0 ? '#2ecc71' : '#e74c3c';
             document.getElementById('ladder-complete-count').textContent = completeLadders;
-            document.getElementById('ladder-failed-r1').textContent = failedR1;
-            document.getElementById('ladder-failed-r2').textContent = failedR2;
+            document.getElementById('ladder-failed-r1').textContent = lossR1;
+            document.getElementById('ladder-failed-r2').textContent = (profitableR1 - completeLadders);
             document.getElementById('ladder-win-rate').textContent = `${winRate.toFixed(1)}%`;
 
-            console.log(`[LADDER] Complete: ${completeLadders}, Failed R1: ${failedR1}, Failed R2: ${failedR2}, Profit: $${totalProfit.toFixed(2)}`);
+            console.log(`[LADDER] Profitable R1: ${profitableR1}, Loss R1: ${lossR1}, Complete: ${completeLadders}, Total: $${totalProfit.toFixed(2)}`);
         }
 
         function switchTab(tab) {
