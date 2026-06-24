@@ -1270,6 +1270,9 @@
             let lossR1 = 0;
             let completeLadders = 0;
             let totalProfit = 0;
+            let maxProb = 0;
+            let avgProb = 0;
+            let probCount = 0;
 
             const tbody = document.getElementById('ladder-history');
             tbody.innerHTML = '';
@@ -1278,8 +1281,13 @@
             const estimateProbability = (currentPrice, openPrice, direction) => {
                 const pctChange = (currentPrice - openPrice) / openPrice;
                 const dirMultiplier = direction === 'above' ? 1 : -1;
-                const prob = 0.5 + (pctChange * dirMultiplier * 5);  // Each 1% = ~5% prob
-                return Math.max(0.1, Math.min(0.9, prob));
+                // Multiplier of 5 means: 1% move = 5% prob. Try lowering for more sensitivity
+                const prob = 0.5 + (pctChange * dirMultiplier * 5);
+                const clamped = Math.max(0.1, Math.min(0.9, prob));
+                maxProb = Math.max(maxProb, clamped);
+                avgProb += clamped;
+                probCount++;
+                return clamped;
             };
 
             // Helper: Find price at time
@@ -1400,7 +1408,8 @@
             document.getElementById('ladder-failed-r2').textContent = (profitableR1 - completeLadders);
             document.getElementById('ladder-win-rate').textContent = `${winRate.toFixed(1)}%`;
 
-            console.log(`[LADDER] Profitable R1: ${profitableR1}, Loss R1: ${lossR1}, Complete: ${completeLadders}, Total: $${totalProfit.toFixed(2)}`);
+            const avgProbValue = probCount > 0 ? (avgProb / probCount) : 0;
+            console.log(`[LADDER] Max Prob: ${(maxProb*100).toFixed(1)}% | Avg Prob: ${(avgProbValue*100).toFixed(1)}% | Profitable R1: ${profitableR1}, Loss R1: ${lossR1}, Complete: ${completeLadders}, Total: $${totalProfit.toFixed(2)}`);
         }
 
         function switchTab(tab) {
