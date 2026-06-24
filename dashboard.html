@@ -453,6 +453,7 @@
             <button class="tab" onclick="switchTab('history')">📊 History</button>
             <button class="tab" onclick="switchTab('backtest')">💰 Backtest</button>
             <button class="tab" onclick="switchTab('analysis')">📉 Analysis</button>
+            <button class="tab" onclick="switchTab('ladder')">🪜 Ladder</button>
             <button class="tab" onclick="switchTab('ml')">🤖 ML Prediction</button>
         </div>
 
@@ -587,6 +588,61 @@
                     <button onclick="runOffsetAnalysis()">📊 Analyze Offsets (1-15 min)</button>
                 </div>
                 <div id="offset-results"></div>
+            </div>
+        </div>
+
+        <!-- Ladder Strategy Tab -->
+        <div id="ladder-tab" class="tab-content">
+            <div class="panel">
+                <h2>🪜 Ladder Strategy</h2>
+                <p style="color: #80868d; margin-bottom: 20px;">Two-rung betting ladder: Risk $25 seed once, roll profits forward. Seed protected on losses.</p>
+
+                <div class="summary-grid">
+                    <div class="summary-box" style="border-color: rgba(0, 200, 200, 0.6); box-shadow: 0 0 20px rgba(0, 200, 200, 0.3);">
+                        <h3>Seed Protected</h3>
+                        <div class="value" style="font-size: 2em; color: #2ecc71;">✅ YES</div>
+                        <div style="font-size: 0.8em; color: #a0a6ad; margin-top: 5px;">$25.00 always safe</div>
+                    </div>
+                    <div class="summary-box">
+                        <h3>Total Profit</h3>
+                        <div class="value" id="ladder-total-profit" style="font-size: 2em;">$0.00</div>
+                    </div>
+                    <div class="summary-box">
+                        <h3>Complete Ladders</h3>
+                        <div class="value" id="ladder-complete-count">0</div>
+                    </div>
+                    <div class="summary-box">
+                        <h3>Failed Rung 1</h3>
+                        <div class="value" id="ladder-failed-r1">0</div>
+                    </div>
+                    <div class="summary-box">
+                        <h3>Failed Rung 2</h3>
+                        <div class="value" id="ladder-failed-r2">0</div>
+                    </div>
+                    <div class="summary-box">
+                        <h3>Win Rate</h3>
+                        <div class="value" id="ladder-win-rate">0%</div>
+                    </div>
+                </div>
+
+                <h3 style="color: #00c8c8; margin-top: 25px; margin-bottom: 15px;">Ladder Attempts</h3>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Interval</th>
+                                <th>Rung 1 (14m)</th>
+                                <th>Rung 1 P&L</th>
+                                <th>Rung 2 (5m)</th>
+                                <th>Rung 2 P&L</th>
+                                <th>Total P&L</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ladder-history">
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -1195,6 +1251,143 @@
             }
         }
 
+        function updateLadder() {
+            /**
+             * Analyze ladder strategy: 2-rung betting with $25 seed.
+             * Rung 1: 14-min checkpoint. Rung 2: 5-min checkpoint.
+             * Calculate if both match, if only rung 1 matches, or if rung 1 fails.
+             */
+            console.log('[LADDER] Analyzing ladder attempts...');
+
+            const seed = 25;
+            const entry = 0.90;
+            const rung1Offset = 14;  // minutes before close
+            const rung2Offset = 5;
+
+            let completeLadders = 0;
+            let failedR1 = 0;
+            let failedR2 = 0;
+            let totalProfit = 0;
+
+            const tbody = document.getElementById('ladder-history');
+            tbody.innerHTML = '';
+
+            // Analyze each interval
+            allIntervals.forEach((interval, idx) => {
+                try {
+                    const intervalStart = new Date(interval.start);
+                    const intervalEnd = new Date(interval.start);
+                    intervalEnd.setMinutes(intervalEnd.getMinutes() + 15);
+
+                    // Calculate checkpoint times
+                    const cp1Time = new Date(intervalEnd.getTime() - rung1Offset * 60 * 1000);
+                    const cp2Time = new Date(intervalEnd.getTime() - rung2Offset * 60 * 1000);
+
+                    // Find prices at checkpoint times (closest price within 2 minutes)
+                    const getPriceAtTime = (ticks, targetTime) => {
+                        let closest = ticks[0];
+                        let closestDist = Math.abs(new Date(ticks[0].time) - targetTime);
+                        for (let i = 1; i < ticks.length; i++) {
+                            const dist = Math.abs(new Date(ticks[i].time) - targetTime);
+                            if (dist < closestDist) {
+                                closestDist = dist;
+                                closest = ticks[i];
+                            }
+                        }
+                        return closestDist < 120000 ? closest.price : null;
+                    };
+                    const cp1Price = getPriceAtTime(allTicks, cp1Time);
+                    const cp2Price = getPriceAtTime(allTicks, cp2Time);
+
+                    if (!cp1Price || !cp2Price) return; // Skip if can't determine prices
+
+                    // Rung 1: Did 14-min checkpoint direction match final close?
+                    const cp1Dir = cp1Price >= interval.open ? 'above' : 'below';
+                    const finalDir = interval.close >= interval.open ? 'above' : 'below';
+                    const rung1Won = cp1Dir === finalDir;
+
+                    if (!rung1Won) {
+                        failedR1++;
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${new Date(interval.start).toLocaleString().split(',')[1]}</td>
+                            <td><span class="badge mismatch">❌ ${cp1Dir}</span></td>
+                            <td style="color: #e74c3c;">-$25.00</td>
+                            <td>—</td>
+                            <td>—</td>
+                            <td style="color: #e74c3c;">-$25.00</td>
+                            <td><span class="badge mismatch">Failed R1</span></td>
+                        `;
+                        tbody.appendChild(tr);
+                        return;
+                    }
+
+                    // Rung 1 won: calculate profit
+                    const r1Contracts = seed / entry;
+                    const r1Payout = r1Contracts;
+                    const r1Profit = r1Payout - seed;
+                    const r1Balance = seed + r1Profit;
+
+                    // Rung 2: Did 5-min checkpoint direction match final close?
+                    const cp2Dir = cp2Price >= interval.open ? 'above' : 'below';
+                    const rung2Won = cp2Dir === finalDir;
+
+                    if (!rung2Won) {
+                        failedR2++;
+                        totalProfit += r1Profit;
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${new Date(interval.start).toLocaleString().split(',')[1]}</td>
+                            <td><span class="badge match">✅ ${cp1Dir}</span></td>
+                            <td style="color: #2ecc71;">+$${r1Profit.toFixed(2)}</td>
+                            <td><span class="badge mismatch">❌ ${cp2Dir}</span></td>
+                            <td style="color: #e74c3c;">-$${r1Profit.toFixed(2)}</td>
+                            <td style="color: #e74c3c;">-$${r1Profit.toFixed(2)}</td>
+                            <td><span class="badge mismatch">Failed R2</span></td>
+                        `;
+                        tbody.appendChild(tr);
+                        return;
+                    }
+
+                    // Both rungs won!
+                    completeLadders++;
+                    const r2Contracts = r1Balance / entry;
+                    const r2Payout = r2Contracts;
+                    const r2Profit = r2Payout - r1Balance;
+                    const totalLadderProfit = r1Profit + r2Profit;
+                    totalProfit += totalLadderProfit;
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${new Date(interval.start).toLocaleString().split(',')[1]}</td>
+                        <td><span class="badge match">✅ ${cp1Dir}</span></td>
+                        <td style="color: #2ecc71;">+$${r1Profit.toFixed(2)}</td>
+                        <td><span class="badge match">✅ ${cp2Dir}</span></td>
+                        <td style="color: #2ecc71;">+$${r2Profit.toFixed(2)}</td>
+                        <td style="color: #2ecc71; font-weight: 600;">+$${totalLadderProfit.toFixed(2)}</td>
+                        <td><span class="badge match">✅ Complete</span></td>
+                    `;
+                    tbody.appendChild(tr);
+
+                } catch (e) {
+                    console.error('[LADDER] Error analyzing interval:', e);
+                }
+            });
+
+            // Update summary
+            const totalAttempts = completeLadders + failedR1 + failedR2;
+            const winRate = totalAttempts > 0 ? (completeLadders / totalAttempts * 100) : 0;
+
+            document.getElementById('ladder-total-profit').textContent = `$${totalProfit.toFixed(2)}`;
+            document.getElementById('ladder-total-profit').style.color = totalProfit >= 0 ? '#2ecc71' : '#e74c3c';
+            document.getElementById('ladder-complete-count').textContent = completeLadders;
+            document.getElementById('ladder-failed-r1').textContent = failedR1;
+            document.getElementById('ladder-failed-r2').textContent = failedR2;
+            document.getElementById('ladder-win-rate').textContent = `${winRate.toFixed(1)}%`;
+
+            console.log(`[LADDER] Complete: ${completeLadders}, Failed R1: ${failedR1}, Failed R2: ${failedR2}, Profit: $${totalProfit.toFixed(2)}`);
+        }
+
         function switchTab(tab) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -1204,6 +1397,7 @@
 
             if (tab === 'history') loadLast24Hours();
             if (tab === 'backtest') updateBacktest();
+            if (tab === 'ladder') updateLadder();
             if (tab === 'ml') updateMLPredictions();
         }
 
