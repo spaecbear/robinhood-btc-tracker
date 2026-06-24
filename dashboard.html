@@ -709,6 +709,12 @@
                 <div id="ml-features"></div>
 
                 <h3 style="color: #00c8c8; margin-top: 20px; margin-bottom: 15px;">Out-of-Sample Predictions</h3>
+                <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button onclick="sortMLTable('confidence')" style="padding: 8px 12px; background: rgba(0, 200, 200, 0.2); border: 1px solid rgba(0, 200, 200, 0.5); color: #00c8c8; border-radius: 4px; cursor: pointer;">Sort by Confidence</button>
+                    <button onclick="sortMLTable('correct')" style="padding: 8px 12px; background: rgba(0, 200, 200, 0.2); border: 1px solid rgba(0, 200, 200, 0.5); color: #00c8c8; border-radius: 4px; cursor: pointer;">Sort by Success</button>
+                    <button onclick="sortMLTable('recent')" style="padding: 8px 12px; background: rgba(0, 200, 200, 0.2); border: 1px solid rgba(0, 200, 200, 0.5); color: #00c8c8; border-radius: 4px; cursor: pointer;">Sort by Recent</button>
+                    <span id="ml-sort-indicator" style="color: #a0a6ad; font-size: 0.9em; align-self: center;"></span>
+                </div>
                 <div style="overflow-x: auto;">
                     <table>
                         <thead>
@@ -736,6 +742,8 @@
         let currentIntervals = [];  // Updated when checkpoint offset changes
         let displayTicks = [];  // Current displayed ticks (for chart plugin access)
         let mlPredictions = [];  // Store ML predictions with confidence for filtering
+        let mlPredictionsData = [];  // Store full prediction data for sorting
+        let mlCurrentSort = 'recent';  // Track current sort mode
         let chart = null;
         let chartStartIndex = 0;
         let chartEndIndex = 180;  // Show last ~3 intervals (180 ticks at 15-sec polling = 45 min)
@@ -1497,6 +1505,78 @@
             console.log(`[LADDER] Max Prob: ${(maxProb*100).toFixed(1)}% | Avg Prob: ${(avgProbValue*100).toFixed(1)}% | Profitable R1: ${profitableR1}, Loss R1: ${lossR1}, Complete: ${completeLadders}, Total: $${totalProfit.toFixed(2)}`);
         }
 
+        function sortMLTable(sortBy) {
+            /**
+             * Sort ML predictions table by confidence, success, or recency
+             */
+            mlCurrentSort = sortBy;
+            let sorted = [...mlPredictionsData];
+
+            if (sortBy === 'confidence') {
+                // Sort by confidence (high to low)
+                sorted.sort((a, b) => b.confidence - a.confidence);
+                document.getElementById('ml-sort-indicator').textContent = '🔽 Sorted by Confidence (High to Low)';
+            } else if (sortBy === 'correct') {
+                // Sort by success (correct first, then by confidence)
+                sorted.sort((a, b) => {
+                    if (a.correct !== b.correct) return b.correct ? 1 : -1;
+                    return b.confidence - a.confidence;
+                });
+                document.getElementById('ml-sort-indicator').textContent = '✓ Sorted by Success (Correct First)';
+            } else if (sortBy === 'recent') {
+                // Sort by recency (newest first)
+                sorted.sort((a, b) => new Date(b.start) - new Date(a.start));
+                document.getElementById('ml-sort-indicator').textContent = '⏱️ Sorted by Recent (Newest First)';
+            }
+
+            renderMLPredictionsTableData(sorted);
+        }
+
+        function renderMLPredictionsTable() {
+            /**
+             * Render ML predictions table with current sort
+             */
+            let sorted = [...mlPredictionsData];
+
+            if (mlCurrentSort === 'confidence') {
+                sorted.sort((a, b) => b.confidence - a.confidence);
+                document.getElementById('ml-sort-indicator').textContent = '🔽 Sorted by Confidence (High to Low)';
+            } else if (mlCurrentSort === 'correct') {
+                sorted.sort((a, b) => {
+                    if (a.correct !== b.correct) return b.correct ? 1 : -1;
+                    return b.confidence - a.confidence;
+                });
+                document.getElementById('ml-sort-indicator').textContent = '✓ Sorted by Success (Correct First)';
+            } else {
+                sorted.sort((a, b) => new Date(b.start) - new Date(a.start));
+                document.getElementById('ml-sort-indicator').textContent = '⏱️ Sorted by Recent (Newest First)';
+            }
+
+            renderMLPredictionsTableData(sorted);
+        }
+
+        function renderMLPredictionsTableData(predictions) {
+            /**
+             * Render predictions into the table
+             */
+            const tbody = document.getElementById('ml-predictions-table');
+            tbody.innerHTML = '';
+
+            predictions.slice(0, 100).forEach(p => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${new Date(p.start).toLocaleString()}</td>
+                    <td><span class="badge ${p.prediction}">${p.prediction}</span></td>
+                    <td>${(p.confidence * 100).toFixed(0)}%</td>
+                    <td><span class="badge ${p.actual}">${p.actual}</span></td>
+                    <td><span style="color:${p.correct ? '#2ecc71' : '#e74c3c'}; font-weight:600;">${p.correct ? '✓ YES' : '✗ NO'}</span></td>
+                    <td>$${p.open.toFixed(2)}</td>
+                    <td>$${p.close.toFixed(2)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
         function switchTab(tab) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -1604,28 +1684,16 @@
                         </div>`;
                     }).join('');
 
-                    // --- Store predictions for Ladder filtering ---
+                    // --- Store predictions for Ladder filtering and sorting ---
                     mlPredictions = data.predictions.map(p => ({
                         start: new Date(p.start),
                         confidence: p.confidence
                     }));
+                    mlPredictionsData = data.predictions;
+                    mlCurrentSort = 'recent';
 
-                    // --- Out-of-sample predictions table ---
-                    const tbody = document.getElementById('ml-predictions-table');
-                    tbody.innerHTML = '';
-                    data.predictions.slice(0, 100).forEach(p => {
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `
-                            <td>${new Date(p.start).toLocaleString()}</td>
-                            <td><span class="badge ${p.prediction}">${p.prediction}</span></td>
-                            <td>${(p.confidence * 100).toFixed(0)}%</td>
-                            <td><span class="badge ${p.actual}">${p.actual}</span></td>
-                            <td><span style="color:${p.correct ? '#2ecc71' : '#e74c3c'}; font-weight:600;">${p.correct ? '✓ YES' : '✗ NO'}</span></td>
-                            <td>$${p.open.toFixed(2)}</td>
-                            <td>$${p.close.toFixed(2)}</td>
-                        `;
-                        tbody.appendChild(tr);
-                    });
+                    // Render initial table
+                    renderMLPredictionsTable();
 
                     console.log(`[ML] Walk-forward accuracy: ${cv}% vs baseline ${baseline}%`);
                 })
