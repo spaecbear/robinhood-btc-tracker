@@ -735,6 +735,7 @@
         let allTicks = [];
         let currentIntervals = [];  // Updated when checkpoint offset changes
         let displayTicks = [];  // Current displayed ticks (for chart plugin access)
+        let mlPredictions = [];  // Store ML predictions with confidence for filtering
         let chart = null;
         let chartStartIndex = 0;
         let chartEndIndex = 180;  // Show last ~3 intervals (180 ticks at 15-sec polling = 45 min)
@@ -1345,8 +1346,9 @@
                 return Math.min(1, clarity);  // Cap at 1
             };
 
-            // Clarity threshold: intervals below this are too wishy-washy to bet on
-            const clarityThreshold = 0.40;  // 40% = decent clarity, <40% = skip
+            // Filter thresholds
+            const clarityThreshold = 0.40;      // 40% = decent clarity, <40% = skip
+            const confidenceThreshold = 0.75;   // 75% = high ML confidence, <75% = skip
 
             // Analyze each interval
             allIntervals.forEach((interval, idx) => {
@@ -1357,6 +1359,16 @@
 
                     // Check market clarity in first 2 minutes
                     const clarity = calculateClarity(allTicks, intervalStart);
+
+                    // Find ML prediction for this interval (match by start time, within 1 minute)
+                    let mlConfidence = null;
+                    if (mlPredictions.length > 0) {
+                        const match = mlPredictions.find(pred => {
+                            const timeDiff = Math.abs(pred.start - intervalStart) / 1000 / 60;
+                            return timeDiff < 1;  // Within 1 minute
+                        });
+                        mlConfidence = match ? match.confidence : null;
+                    }
 
                     const cp1Time = new Date(intervalEnd.getTime() - rung1Offset * 60 * 1000);
                     const cp2Time = new Date(intervalEnd.getTime() - rung2Offset * 60 * 1000);
@@ -1372,6 +1384,18 @@
                         tr.innerHTML = `
                             <td>${new Date(interval.start).toLocaleString().split(',')[1]}</td>
                             <td colspan="6" style="text-align: center; color: #a0a6ad;">⏸️ Wishy-washy (${(clarity*100).toFixed(0)}% clarity) - SKIPPED</td>
+                            <td><span class="badge mismatch">Skipped</span></td>
+                        `;
+                        tbody.appendChild(tr);
+                        return;
+                    }
+
+                    // Skip if ML confidence is too low
+                    if (mlConfidence !== null && mlConfidence < confidenceThreshold) {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${new Date(interval.start).toLocaleString().split(',')[1]}</td>
+                            <td colspan="6" style="text-align: center; color: #a0a6ad;">🤖 Low ML confidence (${(mlConfidence*100).toFixed(0)}%) - SKIPPED</td>
                             <td><span class="badge mismatch">Skipped</span></td>
                         `;
                         tbody.appendChild(tr);
@@ -1579,6 +1603,12 @@
                             <span style="width:70px; text-align:right; color:${color}; font-family:monospace; font-size:0.85em;">${f.weight >= 0 ? '+' : ''}${f.weight}</span>
                         </div>`;
                     }).join('');
+
+                    // --- Store predictions for Ladder filtering ---
+                    mlPredictions = data.predictions.map(p => ({
+                        start: new Date(p.start),
+                        confidence: p.confidence
+                    }));
 
                     // --- Out-of-sample predictions table ---
                     const tbody = document.getElementById('ml-predictions-table');
