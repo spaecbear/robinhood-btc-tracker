@@ -1316,12 +1316,47 @@
                 return closestDist < 120000 ? closest.price : null;
             };
 
+            // Helper: Detect if market is "wishy-washy" (indecisive) in first 2 minutes
+            // Returns clarity score: 0=very wishy-washy, 1=very clear direction
+            const calculateClarity = (ticks, intervalStart) => {
+                const twoMinLater = new Date(intervalStart.getTime() + 2 * 60 * 1000);
+                const firstTwoMinTicks = ticks.filter(t => {
+                    const tTime = new Date(t.time);
+                    return tTime >= intervalStart && tTime <= twoMinLater;
+                });
+
+                if (firstTwoMinTicks.length < 2) return 0.5;  // Not enough data
+
+                // Find high and low in first 2 minutes
+                let high = firstTwoMinTicks[0].price;
+                let low = firstTwoMinTicks[0].price;
+                for (const tick of firstTwoMinTicks) {
+                    high = Math.max(high, tick.price);
+                    low = Math.min(low, tick.price);
+                }
+
+                // Net movement (direction)
+                const netMove = firstTwoMinTicks[firstTwoMinTicks.length - 1].price - firstTwoMinTicks[0].price;
+                const range = high - low;
+
+                // If price oscillates a lot but doesn't move much = wishy-washy
+                // Clarity = netMove / range (higher = clearer direction)
+                const clarity = range > 0 ? Math.abs(netMove) / range : 0.5;
+                return Math.min(1, clarity);  // Cap at 1
+            };
+
+            // Clarity threshold: intervals below this are too wishy-washy to bet on
+            const clarityThreshold = 0.40;  // 40% = decent clarity, <40% = skip
+
             // Analyze each interval
             allIntervals.forEach((interval, idx) => {
                 try {
                     const intervalStart = new Date(interval.start);
                     const intervalEnd = new Date(interval.start);
                     intervalEnd.setMinutes(intervalEnd.getMinutes() + 15);
+
+                    // Check market clarity in first 2 minutes
+                    const clarity = calculateClarity(allTicks, intervalStart);
 
                     const cp1Time = new Date(intervalEnd.getTime() - rung1Offset * 60 * 1000);
                     const cp2Time = new Date(intervalEnd.getTime() - rung2Offset * 60 * 1000);
@@ -1330,6 +1365,18 @@
                     const cp2Price = getPriceAtTime(allTicks, cp2Time);
 
                     if (!cp1Price || !cp2Price) return;
+
+                    // Skip if market is too wishy-washy
+                    if (clarity < clarityThreshold) {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${new Date(interval.start).toLocaleString().split(',')[1]}</td>
+                            <td colspan="6" style="text-align: center; color: #a0a6ad;">⏸️ Wishy-washy (${(clarity*100).toFixed(0)}% clarity) - SKIPPED</td>
+                            <td><span class="badge mismatch">Skipped</span></td>
+                        `;
+                        tbody.appendChild(tr);
+                        return;
+                    }
 
                     // RUNG 1: Monitor from 14-min, exit on profit/loss
                     const rung1Dir = cp1Price >= interval.open ? 'above' : 'below';
@@ -1394,8 +1441,9 @@
                     totalProfit += totalLadderProfit;
 
                     const tr = document.createElement('tr');
+                    const clarityPercent = (clarity * 100).toFixed(0);
                     tr.innerHTML = `
-                        <td>${new Date(interval.start).toLocaleString().split(',')[1]}</td>
+                        <td>${new Date(interval.start).toLocaleString().split(',')[1]} <span style="color: #80868d; font-size: 0.85em;">${clarityPercent}%</span></td>
                         <td><span class="badge match">${rung1Dir} (${(rung1Prob*100).toFixed(0)}%)</span></td>
                         <td style="color: #2ecc71;">+$${rung1Profit.toFixed(2)}</td>
                         <td><span class="badge ${cp2Dir === finalDir ? 'match' : 'mismatch'}">${cp2Dir}</span></td>
