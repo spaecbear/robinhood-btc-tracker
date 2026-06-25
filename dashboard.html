@@ -698,6 +698,21 @@
                         <h3>Overfit Gap</h3>
                         <div class="value" id="ml-overfit">—</div>
                     </div>
+                    <div class="summary-box" style="border-color: rgba(46, 204, 113, 0.4); cursor: help;" title="Accuracy on first half of predictions. Lower accuracy here = model was learning (expected).">
+                        <h3>Early Accuracy</h3>
+                        <div class="value" id="ml-early" style="font-size: 1.5em;">—</div>
+                        <div style="font-size: 0.8em; color: #a0a6ad; margin-top: 5px;">First half (learning)</div>
+                    </div>
+                    <div class="summary-box" style="border-color: rgba(46, 204, 113, 0.6); cursor: help;" title="Accuracy on second half of predictions. Higher accuracy here = model improved with more data (good sign).">
+                        <h3>Recent Accuracy</h3>
+                        <div class="value" id="ml-recent" style="font-size: 1.5em;">—</div>
+                        <div style="font-size: 0.8em; color: #a0a6ad; margin-top: 5px;">Second half (mature)</div>
+                    </div>
+                    <div class="summary-box" style="border-color: rgba(0, 200, 200, 0.4); cursor: help;" title="Improvement from early to recent. Positive = model is learning. Negative = worse with more data (red flag).">
+                        <h3>Improvement</h3>
+                        <div class="value" id="ml-improvement" style="font-size: 1.5em;">—</div>
+                        <div style="font-size: 0.8em; color: #a0a6ad; margin-top: 5px;">Recent − Early</div>
+                    </div>
                 </div>
 
                 <div id="ml-status" style="color: #80868d; margin-top: 15px;"></div>
@@ -1660,8 +1675,22 @@
                     // Overfit gap
                     const overfitEl = document.getElementById('ml-overfit');
                     overfitEl.textContent = `${data.overfit_gap >= 0 ? '+' : ''}${data.overfit_gap} pts`;
-                    // Large positive gap = overfitting warning.
                     overfitEl.style.color = data.overfit_gap > 8 ? '#e74c3c' : '#00c8c8';
+
+                    // Early accuracy (first half of predictions while learning)
+                    const earlyEl = document.getElementById('ml-early');
+                    earlyEl.textContent = `${data.early_accuracy}%`;
+                    earlyEl.style.color = '#80868d';  // neutral - expected to be lower
+
+                    // Recent accuracy (second half after model matured)
+                    const recentEl = document.getElementById('ml-recent');
+                    recentEl.textContent = `${data.recent_accuracy}%`;
+                    recentEl.style.color = data.recent_accuracy > baseline ? '#2ecc71' : '#e74c3c';
+
+                    // Improvement (recent - early)
+                    const improvementEl = document.getElementById('ml-improvement');
+                    improvementEl.textContent = `${data.improvement >= 0 ? '+' : ''}${data.improvement} pts`;
+                    improvementEl.style.color = data.improvement > 0 ? '#2ecc71' : (data.improvement < 0 ? '#e74c3c' : '#80868d');
 
                     // --- Next-interval call ---
                     const next = data.next_prediction;

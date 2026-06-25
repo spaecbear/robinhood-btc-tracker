@@ -422,6 +422,17 @@ def run_ml_analysis(use_cache=True):
     # Walk-forward out-of-sample predictions (the honest accuracy + the table).
     wf_predictions, wf_acc = walk_forward(samples)
 
+    # Compute accuracy by phase: early (first half) vs recent (second half)
+    # This shows if the model is learning as it gets more data.
+    mid = len(wf_predictions) // 2
+    early_preds = wf_predictions[:mid]
+    recent_preds = wf_predictions[mid:]
+
+    early_acc = (sum(1 for p in early_preds if p["correct"]) / len(early_preds)
+                 if early_preds else 0.0)
+    recent_acc = (sum(1 for p in recent_preds if p["correct"]) / len(recent_preds)
+                  if recent_preds else 0.0)
+
     # Train a final model on ALL data to (a) report feature weights and
     # (b) predict the next interval's direction.
     means_all, stds_all = fit_scaler(X)
@@ -453,6 +464,9 @@ def run_ml_analysis(use_cache=True):
         "train_accuracy": round(train_acc * 100, 1),
         "test_accuracy": round(test_acc * 100, 1),
         "cv_accuracy": round(wf_acc * 100, 1),
+        "early_accuracy": round(early_acc * 100, 1),  # First half of predictions
+        "recent_accuracy": round(recent_acc * 100, 1),  # Second half of predictions
+        "improvement": round((recent_acc - early_acc) * 100, 1),  # Learning progress
         "overfit_gap": round((train_acc - test_acc) * 100, 1),
         "edge_vs_baseline": round((wf_acc - baseline) * 100, 1),
         "feature_weights": weights,
